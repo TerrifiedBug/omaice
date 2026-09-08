@@ -421,7 +421,9 @@ BarWidget {
     target: "io.github.terrifiedbug.omaice"
 
     function toggle(): void { root.toggle() }
-    function show(): void { root.expand() }
+    // Not "show": `qs ipc call <target> show` is swallowed by qs's own show
+    // subcommand, so the method would be unreachable from the command line.
+    function reveal(): void { root.expand() }
     function hide(): void { root.collapse() }
     function opened(): string { return root.expanded ? "true" : "false" }
   }
