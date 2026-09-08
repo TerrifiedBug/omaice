@@ -224,9 +224,11 @@ BarWidget {
   property bool slotsUnavailableWarned: false
 
   // Entries sharing this widget's section, split by the divider, for the
-  // manage popup. layoutEntries() reads barConfigSerial, and that dependency
-  // is what re-runs this binding after a structural rebuild.
+  // manage popup. The bare serial read is the binding's dependency on a
+  // structural rebuild — the same idiom Bar.layoutEntries() uses, because the
+  // entry array it returns is a detached snapshot that cannot notify.
   readonly property var sectionWidgets: {
+    var serial = root.bar ? root.bar.barConfigSerial : 0
     var mine = ownSlot()
     if (!mine) return []
     var entries = root.bar.layoutEntries(mine.region)
