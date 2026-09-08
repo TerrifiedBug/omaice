@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.terrifiedbug.omaice",
+  "name": "OmaIce",
+  "version": "0.1.0",
+  "author": "TerrifiedBug",
+  "license": "MIT",
+  "description": "Ice-style hidden section for the bar: everything left of the chevron hides, plus the system tray.",
+  "homepage": "https://github.com/TerrifiedBug/omaice",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "OmaIce",
+    "description": "Chevron that hides the widgets and tray icons to its left",
+    "category": "Status",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": { "rehideSeconds": 10, "revealOnHover": false },
+    "schema": [
+      { "key": "rehideSeconds", "type": "integer", "label": "Auto-rehide after (seconds, 0 = never)", "defaultValue": 10, "min": 0, "max": 600, "step": 1 },
+      { "key": "revealOnHover", "type": "boolean", "label": "Reveal on hover", "defaultValue": false }
+    ]
+  }
+}
