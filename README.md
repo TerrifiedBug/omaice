@@ -102,9 +102,25 @@ through the bar gathers them together in front of the chevron — that is the
 mechanism showing through, and it's why removing OmaIce leaves them where you
 put them rather than springing them back to their old spots.
 
-If a future Omarchy stops handing third-party widgets the live bar object,
-OmaIce logs one warning and quietly degrades to a tray-only drawer. Tray
-pinning and hiding are unaffected.
+## Compatibility
+
+Verified on **omarchy 4.0.2-1** with quickshell 0.3.1, where the bar hands a
+mounted widget the live bar object.
+
+Omarchy's `quattro` branch has since moved third-party bar widgets onto a
+capability-scoped bar facade (`Bar.pluginBarApiFor`) that deliberately does not
+expose the module slots. On a release built from that code OmaIce cannot hide
+sibling widgets: it logs
+
+```
+omaice: bar.moduleSlots unavailable; only tray icons are hidden
+```
+
+exactly once and degrades to a tray drawer — chevron, reveal, auto-rehide, and
+tray pin/hide all keep working; the **Bar widgets** list is simply empty. That
+fallback is tested, not hoped for. Hiding bar widgets needs a supported way to
+conceal a sibling slot, and that capability has to come from the host — it is
+not something a plugin can grant itself.
 
 ## Uninstall
 
