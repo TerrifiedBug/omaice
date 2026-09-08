@@ -135,8 +135,10 @@ without a shell at all: `node --test test/`.
 
 The tray rendering — icons, menus, pinning — is vendored from
 [omacom/omarchy](https://github.com/omacom/omarchy)'s own tray widget, so it
-behaves exactly like the one it replaces.
+behaves exactly like the one it replaces. See [NOTICE](NOTICE) for the
+upstream copyright.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE), and [NOTICE](NOTICE) for the vendored parts
+(also MIT).
