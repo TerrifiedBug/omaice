@@ -104,23 +104,23 @@ put them rather than springing them back to their old spots.
 
 ## Compatibility
 
-Verified on omarchy 4.0.2-1 with quickshell 0.3.1, where the bar hands a mounted
-widget the live bar object.
-
-Omarchy's `quattro` branch has since moved third-party bar widgets onto a
-capability-scoped bar facade (`Bar.pluginBarApiFor`) that deliberately does not
-expose the module slots. On a release built from that code OmaIce cannot hide
-sibling widgets: it logs
+On omarchy 4.0.3 OmaIce is a tray drawer. That release moved third-party bar
+widgets onto a capability-scoped bar facade (`Bar.pluginBarApiFor`) which does
+not expose the module slots, so nothing can conceal a sibling widget any more.
+OmaIce logs
 
 ```
 omaice: bar.moduleSlots unavailable; only tray icons are hidden
 ```
 
-exactly once and degrades to a tray drawer. Chevron, reveal, auto-rehide, and
-tray pin/hide all keep working; the "Bar widgets" list is simply empty. That
-fallback is covered by tests. Hiding bar widgets needs a supported way to
-conceal a sibling slot, and that capability has to come from the host; a plugin
-cannot grant it to itself.
+exactly once and carries on. Chevron, reveal, auto-rehide and tray pin/hide all
+work; the "Bar widgets" list is empty, and widgets left of the chevron stay
+visible. Verified on 4.0.3 with quickshell 0.3.1.
+
+Full behaviour, bar widgets included, needs omarchy 4.0.2-1, where the bar
+hands a mounted widget the live bar object. Getting it back on 4.0.3 needs a
+supported way to conceal a sibling slot, and that capability has to come from
+the host; a plugin cannot grant it to itself.
 
 ## Uninstall
 
