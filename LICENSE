@@ -1,8 +1,6 @@
 MIT License
 
 Copyright (c) 2026 TerrifiedBug
-Portions copyright (c) Omarchy contributors, MIT (Tray.qml, TrayModel.js from
-omacom/omarchy).
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -21,3 +19,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Portions copyright (c) Omarchy contributors, licensed MIT: BarWidget.qml and
+TrayModel.js are derived from shell/plugins/bar/widgets/Tray.qml and
+TrayModel.js in omacom/omarchy.
