@@ -84,8 +84,6 @@ omarchy bar set io.github.terrifiedbug.omaice rehideSeconds 0
 omarchy bar set io.github.terrifiedbug.omaice revealOnHover true --json
 ```
 
-Both are also editable in Omarchy's bar widget settings.
-
 ## How it works
 
 Omarchy mounts every bar entry in a slot, and a slot marked invisible reports
