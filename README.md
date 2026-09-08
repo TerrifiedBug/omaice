@@ -68,6 +68,13 @@ On an Omarchy release that stops handing third-party widgets the live bar
 object, the plugin logs one warning and degrades to a tray-only drawer; the
 tray, pin, and hide behaviour is unaffected.
 
+## Hacking on it
+
+On omarchy 4.0.2 saving a file in `~/.config/omarchy/plugins/io.github.terrifiedbug.omaice`
+logs `Local plugin changed, reloading` but the bar keeps serving the previously
+compiled bar widget, so edits only show up after `omarchy-restart-shell`.
+`node --test test/` covers `Model.js` without a shell at all.
+
 ## Remove
 
 ```bash
