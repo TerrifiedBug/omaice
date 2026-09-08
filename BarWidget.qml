@@ -223,6 +223,12 @@ BarWidget {
   property var managedSlots: []
   property bool slotsUnavailableWarned: false
 
+  // Popup Hide/Show only flips a local override. A layout write rebuilds this
+  // widget and would take the popup down with it on every click, so the rows
+  // stage instead: the section previews the staged result immediately and the
+  // moves are committed as one shell command when the popup closes.
+  property var stagedWidgets: ({})
+
   // Entries sharing this widget's section, split by the divider, for the
   // manage popup. The bare serial read is the binding's dependency on a
   // structural rebuild — the same idiom Bar.layoutEntries() uses, because the
@@ -278,7 +284,8 @@ BarWidget {
       if (!slot || slot === mine || slot.region !== mine.region) continue
       if (!root.bar.sameWindow(root.bar.slotWindow(slot), window)) continue
       var index = entryIndex(entries, slot.entry)
-      if (index !== -1 && index < divider) result.push(slot)
+      if (index === -1) continue
+      if (stagedHidden(slot.moduleName, index < divider)) result.push(slot)
     }
     return result
   }
@@ -305,19 +312,64 @@ BarWidget {
   }
 
   // Registry metadata turns a layout id into the label the picker shows.
-  function widgetRow(id, hidden) {
+  // `placed` is where the layout has it; `hidden` is what the popup shows.
+  function widgetRow(id, placed) {
     var registry = root.bar ? root.bar.barWidgetRegistry : null
     var key = root.bar && typeof root.bar.canonicalWidgetId === "function" ? root.bar.canonicalWidgetId(id) : id
     var meta = registry && typeof registry.metadataFor === "function" ? registry.metadataFor(key) : null
-    return { id: id, name: meta && meta.displayName ? String(meta.displayName) : id, hidden: hidden }
+    return {
+      id: id,
+      name: meta && meta.displayName ? String(meta.displayName) : id,
+      placed: placed,
+      staged: stagedWidgets[id] !== undefined,
+      hidden: stagedHidden(id, placed)
+    }
   }
 
-  // Moving an entry is a structural shell.json write, which rebuilds the bar
-  // (and this widget with it); the public CLI is the supported way in.
-  function moveWidget(id, relation) {
+  function stagedHidden(id, placed) {
+    var staged = stagedWidgets[id]
+    return staged === undefined ? placed : staged === true
+  }
+
+  // Staging a widget back to what the layout already says drops the override,
+  // so toggling a row twice commits nothing.
+  function stageWidget(id, hidden, placed) {
+    var next = {}
+    for (var key in stagedWidgets) next[key] = stagedWidgets[key]
+    if (hidden === placed) delete next[id]
+    else next[id] = hidden
+    stagedWidgets = next
+  }
+
+  // One shell command: each `omarchy bar move` is its own shell.json write and
+  // two racing writes would lose one. Newly hidden widgets land in front of
+  // the chevron in row order, revealed ones behind it back-to-front, so a
+  // batch keeps its relative order either way. The overrides are deliberately
+  // left standing — the write rebuilds this widget, which is what clears
+  // them, and dropping them first would flash every hidden widget back in.
+  function commitStagedWidgets() {
+    var rows = sectionWidgets
     var mine = ownSlot()
-    if (!mine) return
-    Quickshell.execDetached(["omarchy", "bar", "move", id, "--section", mine.region, relation, root.moduleName])
+    var hide = [], show = []
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i].staged) continue
+      if (rows[i].hidden) hide.push(rows[i].id)
+      else show.push(rows[i].id)
+    }
+    if (!mine || !root.bar || (hide.length === 0 && show.length === 0)) {
+      stagedWidgets = ({})
+      return
+    }
+    var parts = []
+    for (var h = 0; h < hide.length; h++) parts.push(moveCommand(hide[h], mine.region, "--before"))
+    for (var s = show.length - 1; s >= 0; s--) parts.push(moveCommand(show[s], mine.region, "--after"))
+    root.bar.run(parts.join(" && "))
+  }
+
+  function moveCommand(id, region, relation) {
+    return "omarchy bar move " + Util.shellQuote(id)
+      + " --section " + Util.shellQuote(region)
+      + " " + relation + " " + Util.shellQuote(root.moduleName)
   }
 
   // The divider is the whole point of the widget: it stays even with no icons.
@@ -332,6 +384,8 @@ BarWidget {
 
   onBarChanged: Qt.callLater(applyHidden)
   onExpandedChanged: applyHidden()
+  onStagedWidgetsChanged: applyHidden()
+  onManagePopupOpenChanged: if (!managePopupOpen) commitStagedWidgets()
   Component.onCompleted: Qt.callLater(applyHidden)
   Component.onDestruction: releaseHidden()
 
@@ -553,7 +607,7 @@ BarWidget {
       }
 
       Text {
-        text: "Left of the chevron is hidden. Pinned tray icons stay visible; hidden tray icons never show."
+        text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show."
         color: Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -701,7 +755,7 @@ BarWidget {
             verticalPadding: 3
             iconSize: Style.font.bodySmall
             fontSize: Style.font.bodySmall
-            onClicked: root.moveWidget(widgetRow.modelData.id, widgetRow.modelData.hidden ? "--after" : "--before")
+            onClicked: root.stageWidget(widgetRow.modelData.id, !widgetRow.modelData.hidden, widgetRow.modelData.placed)
           }
         }
       }

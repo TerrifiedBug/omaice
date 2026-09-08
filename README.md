@@ -24,7 +24,9 @@ service: the plugin is QML loaded by the running Omarchy shell.
   bar.
 - Drag a bar widget to the left of the chevron to hide it — that is the bar's
   own drag-reorder — or right click the chevron and use **Bar widgets** →
-  Hide / Show.
+  Hide / Show. The menu stays open across as many rows as you like: the bar
+  previews each one straight away and the layout is written once, when the
+  menu closes.
 - Right click the chevron to pin or hide individual tray icons. Pinned icons
   stay visible while the section is collapsed; hidden icons never show.
 - Scriptable through IPC:
