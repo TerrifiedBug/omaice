@@ -50,3 +50,15 @@ test("normalizeRehideSeconds clamps to the 0..600 range", () => {
 test("normalizeRehideSeconds rounds a numeric string", () => {
   assert.equal(Model.normalizeRehideSeconds("7.6", 10), 8)
 })
+
+test("displayLabel names a first-party id by its last segment", () => {
+  assert.equal(Model.displayLabel("omarchy.keyboard-layout"), "Keyboard layout")
+})
+
+test("displayLabel names a reverse-domain plugin id", () => {
+  assert.equal(Model.displayLabel("io.github.grichard99.omaproton-vpn"), "Omaproton vpn")
+})
+
+test("displayLabel passes an empty id through", () => {
+  assert.equal(Model.displayLabel(""), "")
+})

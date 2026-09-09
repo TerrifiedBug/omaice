@@ -27,8 +27,18 @@ function toggleBucket(pinned, hidden, id, bucket) {
   return { pinned: p, hidden: h }
 }
 
+// Human label for a layout id when no registry is reachable: the last dotted
+// segment, separators as spaces, first letter upper-cased.
+function displayLabel(id) {
+  var text = String(id || "")
+  var segment = text.substring(text.lastIndexOf(".") + 1).replace(/[-_]+/g, " ").trim()
+  if (!segment) return text
+  return segment.charAt(0).toUpperCase() + segment.slice(1)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    displayLabel: displayLabel,
     normalizeRehideSeconds: normalizeRehideSeconds,
     partitionEntries: partitionEntries,
     toggleBucket: toggleBucket

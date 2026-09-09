@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.terrifiedbug.omaice",
   "name": "OmaIce",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "TerrifiedBug",
   "license": "MIT",
   "description": "Ice-style hidden section for the bar: everything left of the chevron hides, plus the system tray.",

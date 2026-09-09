@@ -13,10 +13,14 @@ import "Model.js" as Model
 //
 // Ice-style divider: the chevron hides every bar entry placed before it in its
 // own section, plus the tray icons in the drawer bucket. Hiding is done by
-// flipping `visible` on the bar's ModuleSlots, so nothing is written to disk
-// and nothing rebuilds on a toggle; the state is re-applied whenever the bar
-// rebuilds its slots. Absorbing the tray is deliberate: two chevrons (one per
-// plugin) would each own half the hidden items.
+// flipping `visible` on the host's ModuleSlots, reached by walking the QML
+// scene from this item to the slot that mounts it and to the slots beside it.
+// Omarchy 4.0.3 hands a plugin widget a bar facade with no sibling access, and
+// upstream documents the parent hierarchy of the scene as the thing the facade
+// cannot isolate a visual child from, so the scene is the only route. Nothing
+// is written to disk and nothing rebuilds on a toggle; the state is re-applied
+// whenever the bar rebuilds its slots. Absorbing the tray is deliberate: two
+// chevrons (one per plugin) would each own half the hidden items.
 BarWidget {
   id: root
   moduleName: "io.github.terrifiedbug.omaice"
@@ -216,12 +220,42 @@ BarWidget {
     persistTrayState(next.pinned, next.hidden)
   }
 
-  // ---- Ice divider. The hidden set is the bar's ModuleSlots for the entries
+  // ---- Ice divider. The hidden set is the host's ModuleSlots for the entries
   //      that sit before this widget in its own section, on this widget's own
   //      bar window. A slot with visible: false reports no extent and the
   //      section Row skips it, so the bar closes over the gap.
   property var managedSlots: []
-  property bool slotsUnavailableWarned: false
+  property bool slotUnavailableWarned: false
+  // Bumped whenever the section's slots may have been rebuilt, so the
+  // sectionWidgets binding has something to depend on: the slot list comes
+  // from a function call, which QML cannot track.
+  property int slotRevision: 0
+
+  // The host mounts a registered widget as registryLoader.item inside its
+  // ModuleSlot, so the slot is two parents up. Matched by identity, not by
+  // moduleName: the same widget id is mounted once per monitor.
+  readonly property var ownSlot: {
+    var item = root.parent
+    for (var depth = 0; item && depth < 4; depth++) {
+      if ("activeItem" in item && "region" in item && "moduleName" in item && item.activeItem === root) return item
+      item = item.parent
+    }
+    return null
+  }
+
+  // The Row (or Column on a vertical bar) that lays out this section's slots.
+  readonly property var sectionRow: ownSlot ? ownSlot.parent : null
+
+  // Pointer over the ice section: the chevron's own slot or any revealed
+  // sibling. The facade has no barHovered, so this is narrower than it was on
+  // purpose - the rehide countdown pauses only while the user is on the
+  // section itself.
+  readonly property bool sectionHovered: {
+    if (ownSlot && ownSlot.hovered) return true
+    var slots = root.managedSlots
+    for (var i = 0; i < slots.length; i++) if (slots[i] && slots[i].hovered) return true
+    return false
+  }
 
   // Popup Hide/Show only flips a local override. A layout write rebuilds this
   // widget and would take the popup down with it on every click, so the rows
@@ -230,16 +264,14 @@ BarWidget {
   property var stagedWidgets: ({})
 
   // Entries sharing this widget's section, split by the divider, for the
-  // manage popup. The bare serial read is the binding's dependency on a
-  // structural rebuild — the same idiom Bar.layoutEntries() uses, because the
-  // entry array it returns is a detached snapshot that cannot notify.
+  // manage popup. Slot order is layout order, so the slots are the layout.
   readonly property var sectionWidgets: {
-    var serial = root.bar ? root.bar.barConfigSerial : 0
-    var mine = ownSlot()
-    if (!mine) return []
-    var entries = root.bar.layoutEntries(mine.region)
-    var ids = entries.map(function(entry) { return root.bar.entryId(entry) })
-    var parts = Model.partitionEntries(ids, entryIndex(entries, mine.entry))
+    var revision = root.slotRevision
+    var staged = root.stagedWidgets
+    var slots = sectionSlots()
+    var divider = slots.indexOf(ownSlot)
+    if (divider === -1) return []
+    var parts = Model.partitionEntries(slots.map(function(slot) { return slot.moduleName }), divider)
     var rows = []
     for (var i = 0; i < parts.hidden.length; i++) rows.push(widgetRow(parts.hidden[i], true))
     for (var j = 0; j < parts.visible.length; j++) rows.push(widgetRow(parts.visible[j], false))
@@ -252,40 +284,27 @@ BarWidget {
 
   function toggle() { expanded = !expanded }
 
-  // This instance's own slot, found by identity: the same widget id is mounted
-  // once per monitor, so matching on moduleName would pick a foreign bar.
-  function ownSlot() {
-    var slots = root.bar && Array.isArray(root.bar.moduleSlots) ? root.bar.moduleSlots : null
-    if (!slots) return null
-    for (var i = 0; i < slots.length; i++) if (slots[i] && slots[i].activeItem === root) return slots[i]
-    return null
-  }
-
-  // Repeater model elements are the same objects the slots hold, so identity
-  // hits first; the id search covers a layout snapshot swapped underneath us.
-  function entryIndex(entries, entry) {
-    var index = entries.indexOf(entry)
-    if (index !== -1) return index
-    var id = root.bar.entryId(entry)
-    for (var i = 0; i < entries.length; i++) if (root.bar.entryId(entries[i]) === id) return i
-    return -1
+  // Sibling ModuleSlots of this section on this monitor, in layout order. The
+  // Repeater is also a child of the Row; the duck-typed test skips it.
+  function sectionSlots() {
+    if (!sectionRow) return []
+    var out = []
+    var kids = sectionRow.children
+    for (var i = 0; i < kids.length; i++) {
+      var kid = kids[i]
+      if (kid && "activeItem" in kid && "region" in kid && "moduleName" in kid) out.push(kid)
+    }
+    return out
   }
 
   function hiddenSlots() {
-    var mine = ownSlot()
-    if (!mine) return []
-    var entries = root.bar.layoutEntries(mine.region)
-    var divider = entryIndex(entries, mine.entry)
-    var window = root.bar.slotWindow(mine)
-    var slots = root.bar.moduleSlots
+    var slots = sectionSlots()
+    var divider = slots.indexOf(ownSlot)
+    if (divider === -1) return []
     var result = []
     for (var i = 0; i < slots.length; i++) {
-      var slot = slots[i]
-      if (!slot || slot === mine || slot.region !== mine.region) continue
-      if (!root.bar.sameWindow(root.bar.slotWindow(slot), window)) continue
-      var index = entryIndex(entries, slot.entry)
-      if (index === -1) continue
-      if (stagedHidden(slot.moduleName, index < divider)) result.push(slot)
+      if (i === divider) continue
+      if (stagedHidden(slots[i].moduleName, i < divider)) result.push(slots[i])
     }
     return result
   }
@@ -293,10 +312,9 @@ BarWidget {
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
   function applyHidden() {
-    if (!root.bar) return
-    if (!Array.isArray(root.bar.moduleSlots)) {
-      if (!slotsUnavailableWarned) console.warn("omaice: bar.moduleSlots unavailable; only tray icons are hidden")
-      slotsUnavailableWarned = true
+    if (!ownSlot) {
+      if (!slotUnavailableWarned) console.warn("omaice: own bar slot not reachable; only tray icons are hidden")
+      slotUnavailableWarned = true
       return
     }
     var next = hiddenSlots()
@@ -311,15 +329,13 @@ BarWidget {
     managedSlots = []
   }
 
-  // Registry metadata turns a layout id into the label the picker shows.
-  // `placed` is where the layout has it; `hidden` is what the popup shows.
+  // No registry is reachable on the facade, so the label is derived from the
+  // layout id. `placed` is where the layout has it; `hidden` is what the
+  // popup shows.
   function widgetRow(id, placed) {
-    var registry = root.bar ? root.bar.barWidgetRegistry : null
-    var key = root.bar && typeof root.bar.canonicalWidgetId === "function" ? root.bar.canonicalWidgetId(id) : id
-    var meta = registry && typeof registry.metadataFor === "function" ? registry.metadataFor(key) : null
     return {
       id: id,
-      name: meta && meta.displayName ? String(meta.displayName) : id,
+      name: Model.displayLabel(id),
       placed: placed,
       staged: stagedWidgets[id] !== undefined,
       hidden: stagedHidden(id, placed)
@@ -349,14 +365,14 @@ BarWidget {
   // them, and dropping them first would flash every hidden widget back in.
   function commitStagedWidgets() {
     var rows = sectionWidgets
-    var mine = ownSlot()
+    var mine = ownSlot
     var hide = [], show = []
     for (var i = 0; i < rows.length; i++) {
       if (!rows[i].staged) continue
       if (rows[i].hidden) hide.push(rows[i].id)
       else show.push(rows[i].id)
     }
-    if (!mine || !root.bar || (hide.length === 0 && show.length === 0)) {
+    if (!mine || (hide.length === 0 && show.length === 0)) {
       stagedWidgets = ({})
       return
     }
@@ -382,21 +398,33 @@ BarWidget {
     NumberAnimation { duration: root.animationDuration; easing.type: Easing.OutCubic }
   }
 
-  onBarChanged: Qt.callLater(applyHidden)
+  onOwnSlotChanged: Qt.callLater(applyHidden)
   onExpandedChanged: applyHidden()
   onStagedWidgetsChanged: applyHidden()
   onManagePopupOpenChanged: if (!managePopupOpen) commitStagedWidgets()
   Component.onCompleted: Qt.callLater(applyHidden)
   Component.onDestruction: releaseHidden()
 
+  // A structural shell.json write rebuilds every slot on every monitor (this
+  // widget with them); the section Row also reports a child list change, which
+  // covers a slot appearing or leaving without a rebuild. Qt.callLater
+  // coalesces the burst into one pass.
+  Connections {
+    target: root.sectionRow
+
+    function onChildrenChanged() {
+      root.slotRevision++
+      Qt.callLater(root.applyHidden)
+    }
+  }
+
   Connections {
     target: root.bar
 
-    // A structural shell.json write rebuilds every slot on every monitor, so
-    // the hidden state has to be re-applied rather than remembered.
-    // Qt.callLater coalesces the burst of registrations into one pass.
-    function onModuleSlotsChanged() { Qt.callLater(root.applyHidden) }
-    function onLayoutConfigChanged() { Qt.callLater(root.applyHidden) }
+    function onLayoutConfigChanged() {
+      root.slotRevision++
+      Qt.callLater(root.applyHidden)
+    }
   }
 
   // Auto-rehide counts down only while the pointer is off every bar and no
@@ -404,7 +432,7 @@ BarWidget {
   Timer {
     id: rehideTimer
     interval: root.rehideSeconds * 1000
-    running: root.expanded && root.rehideSeconds > 0 && !(root.bar && root.bar.barHovered) && !root.popupOpen
+    running: root.expanded && root.rehideSeconds > 0 && !root.sectionHovered && !root.popupOpen
     onTriggered: root.collapse()
   }
 
@@ -413,7 +441,7 @@ BarWidget {
   Timer {
     id: hoverCollapseTimer
     interval: 400
-    running: root.revealOnHover && root.expanded && !(root.bar && root.bar.barHovered) && !root.popupOpen
+    running: root.revealOnHover && root.expanded && !root.sectionHovered && !root.popupOpen
     onTriggered: root.collapse()
   }
 
