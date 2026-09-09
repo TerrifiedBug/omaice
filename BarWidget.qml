@@ -236,7 +236,7 @@ BarWidget {
   readonly property var ownSlot: {
     var item = root.parent
     for (var depth = 0; item && depth < 8; depth++) {
-      if (item.activeItem === root) return item
+      if ("activeItem" in item && item.activeItem === root) return item
       item = item.parent
     }
     return null
@@ -308,12 +308,11 @@ BarWidget {
     return result
   }
 
-  // Re-apply after the current pass of bindings and slot registrations. The
-  // closure re-checks `root`: a rebuild can fire the section's or the bar's
-  // change signal while this widget is already being torn down.
-  function reapplySoon() {
-    Qt.callLater(function() { if (root) root.applyHidden() })
-  }
+  // Re-apply after the current pass of bindings and slot registrations, so a
+  // burst of slot registrations costs one pass. An owned one-shot Timer, not
+  // Qt.callLater: destroying this widget cancels the timer, while a queued
+  // closure outlives the object and runs against its corpse.
+  function reapplySoon() { reapplyTimer.restart() }
 
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
@@ -407,10 +406,16 @@ BarWidget {
   Component.onCompleted: reapplySoon()
   Component.onDestruction: releaseHidden()
 
+  Timer {
+    id: reapplyTimer
+    interval: 0
+    onTriggered: root.applyHidden()
+  }
+
   // A structural shell.json write rebuilds every slot on every monitor (this
   // widget with them); the section Row also reports a child list change, which
-  // covers a slot appearing or leaving without a rebuild. Qt.callLater
-  // coalesces the burst into one pass.
+  // covers a slot appearing or leaving without a rebuild. The deferred pass
+  // coalesces the burst.
   Connections {
     target: root.sectionRow
 

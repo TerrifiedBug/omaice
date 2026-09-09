@@ -12,9 +12,8 @@ that chevron with one that treats the whole section as fair game.
 
 ## Requirements
 
-Omarchy 4.0.3 or later. Nothing else: no external dependencies, no privileged
-step, no background service. The plugin is QML loaded into the shell you are
-already running.
+OmaIce requires Omarchy 4.0.3 or later. The plugin is QML loaded into the shell
+you are already running, so it installs from git and runs in process.
 
 Earlier releases are no longer supported. The current code finds its bar slot by
 walking the QML scene, which works on 4.0.2 as well, but only 4.0.3 is tested.
@@ -37,10 +36,11 @@ section instead, which means everything in it starts out hidden. Nothing is
 lost; click the chevron to see it all, then park it where you want the boundary:
 
 ```bash
-omarchy bar move io.github.terrifiedbug.omaice --section right --index 2
+omarchy bar move io.github.terrifiedbug.omaice --section right --index <n>
 ```
 
-Everything left of the chevron in that section is the hidden set.
+Everything left of the chevron in that section is the hidden set, so `<n>` is
+how many widgets you want it to swallow.
 
 ## Using it
 
