@@ -225,19 +225,18 @@ BarWidget {
   //      bar window. A slot with visible: false reports no extent and the
   //      section Row skips it, so the bar closes over the gap.
   property var managedSlots: []
-  property bool slotUnavailableWarned: false
   // Bumped whenever the section's slots may have been rebuilt, so the
   // sectionWidgets binding has something to depend on: the slot list comes
   // from a function call, which QML cannot track.
   property int slotRevision: 0
 
   // The host mounts a registered widget as registryLoader.item inside its
-  // ModuleSlot, so the slot is two parents up. Matched by identity, not by
-  // moduleName: the same widget id is mounted once per monitor.
+  // ModuleSlot, so the slot is a couple of parents up. Matched by identity,
+  // not by moduleName: the same widget id is mounted once per monitor.
   readonly property var ownSlot: {
     var item = root.parent
-    for (var depth = 0; item && depth < 4; depth++) {
-      if ("activeItem" in item && "region" in item && "moduleName" in item && item.activeItem === root) return item
+    for (var depth = 0; item && depth < 8; depth++) {
+      if (item.activeItem === root) return item
       item = item.parent
     }
     return null
@@ -309,14 +308,17 @@ BarWidget {
     return result
   }
 
+  // Re-apply after the current pass of bindings and slot registrations. The
+  // closure re-checks `root`: a rebuild can fire the section's or the bar's
+  // change signal while this widget is already being torn down.
+  function reapplySoon() {
+    Qt.callLater(function() { if (root) root.applyHidden() })
+  }
+
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
   function applyHidden() {
-    if (!ownSlot) {
-      if (!slotUnavailableWarned) console.warn("omaice: own bar slot not reachable; only tray icons are hidden")
-      slotUnavailableWarned = true
-      return
-    }
+    if (!ownSlot) return
     var next = hiddenSlots()
     for (var i = 0; i < managedSlots.length; i++)
       if (managedSlots[i] && next.indexOf(managedSlots[i]) === -1) managedSlots[i].visible = true
@@ -398,11 +400,11 @@ BarWidget {
     NumberAnimation { duration: root.animationDuration; easing.type: Easing.OutCubic }
   }
 
-  onOwnSlotChanged: Qt.callLater(applyHidden)
+  onOwnSlotChanged: reapplySoon()
   onExpandedChanged: applyHidden()
   onStagedWidgetsChanged: applyHidden()
   onManagePopupOpenChanged: if (!managePopupOpen) commitStagedWidgets()
-  Component.onCompleted: Qt.callLater(applyHidden)
+  Component.onCompleted: reapplySoon()
   Component.onDestruction: releaseHidden()
 
   // A structural shell.json write rebuilds every slot on every monitor (this
@@ -413,8 +415,9 @@ BarWidget {
     target: root.sectionRow
 
     function onChildrenChanged() {
+      if (!root) return
       root.slotRevision++
-      Qt.callLater(root.applyHidden)
+      root.reapplySoon()
     }
   }
 
@@ -422,9 +425,20 @@ BarWidget {
     target: root.bar
 
     function onLayoutConfigChanged() {
+      if (!root) return
       root.slotRevision++
-      Qt.callLater(root.applyHidden)
+      root.reapplySoon()
     }
+  }
+
+  // The host binds ModuleSlot.activeItem one pass after it mounts the widget,
+  // so the slot is legitimately out of reach for a moment on a cold start.
+  // Only a slot that never turns up means the scene shape changed under us,
+  // and then the widget is a plain tray drawer.
+  Timer {
+    interval: 3000
+    running: true
+    onTriggered: if (!root.ownSlot) console.warn("omaice: own bar slot not reachable; only tray icons are hidden")
   }
 
   // Auto-rehide counts down only while the pointer is off every bar and no
