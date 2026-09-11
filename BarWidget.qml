@@ -915,7 +915,9 @@ BarWidget {
     bar: root.bar
     open: root.managePopupOpen
     contentWidth: managePopup.fittedContentWidth(Style.space(300))
-    contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight)
+    // Capped rather than as tall as the list: the rows scroll, so a card that
+    // filled the screen only got in the way. Same cap as the tray menu.
+    contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight, Style.space(420))
 
     // The widget list is as long as the section is, so the card scrolls
     // rather than running off the screen and burying the Behaviour
