@@ -51,15 +51,6 @@ test("normalizeRehideSeconds rounds a numeric string", () => {
   assert.equal(Model.normalizeRehideSeconds("7.6", 10), 8)
 })
 
-test("normalizeRevealMode accepts row case-insensitively", () => {
-  assert.equal(Model.normalizeRevealMode("Row"), "row")
-})
-
-test("normalizeRevealMode falls back to inline on junk", () => {
-  assert.equal(Model.normalizeRevealMode(undefined), "inline")
-  assert.equal(Model.normalizeRevealMode("sideways"), "inline")
-})
-
 test("displayLabel names a first-party id by its last segment", () => {
   assert.equal(Model.displayLabel("omarchy.keyboard-layout"), "Keyboard layout")
 })

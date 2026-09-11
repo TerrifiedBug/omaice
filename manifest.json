@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.terrifiedbug.omaice",
   "name": "OmaIce",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "author": "TerrifiedBug",
   "license": "MIT",
   "description": "Ice-style hidden section for the bar: everything left of the chevron hides, plus the system tray.",
@@ -15,11 +15,10 @@
     "category": "Status",
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": { "rehideSeconds": 10, "revealOnHover": false, "revealMode": "inline" },
+    "defaults": { "rehideSeconds": 10, "revealOnHover": false },
     "schema": [
       { "key": "rehideSeconds", "type": "integer", "label": "Auto-rehide after (seconds, 0 = never)", "defaultValue": 10, "min": 0, "max": 600, "step": 1 },
-      { "key": "revealOnHover", "type": "boolean", "label": "Reveal on hover", "defaultValue": false },
-      { "key": "revealMode", "type": "enum", "label": "Reveal hidden items", "options": ["inline", "row"], "defaultValue": "inline", "description": "inline slides them out beside the chevron; row shows them in a strip under the bar" }
+      { "key": "revealOnHover", "type": "boolean", "label": "Reveal on hover", "defaultValue": false }
     ]
   }
 }

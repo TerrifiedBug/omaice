@@ -70,19 +70,6 @@ Everything else lives behind the chevron.
 If you prefer hover, `revealOnHover true` reveals the section when your pointer
 reaches the chevron and collapses it shortly after the pointer leaves.
 
-`revealMode row` puts the hidden set in a strip directly under the bar instead
-of sliding it out beside the chevron, so the rest of the bar never shifts. The
-strip is right-aligned under the chevron, wraps onto more lines if the hidden
-widgets are wider than your screen, and closes on the same timer. The chevron
-points down when there is a strip to open and up while it is open. Two things
-are worse in there: widgets in the strip get no bar tooltips, and you cannot
-drag-reorder them from the strip. The right-click "Bar widgets" list still
-moves them.
-
-Right click the chevron for the "Behaviour" toggles at the bottom of the menu:
-the row/inline switch and reveal-on-hover. Both apply straight away without
-rebuilding the bar.
-
 It is scriptable too, if you want it on a keybind:
 
 ```bash
@@ -94,16 +81,14 @@ omarchy-shell io.github.terrifiedbug.omaice opened
 
 ## Settings
 
-| Setting         | Type    | Default  | What it does                                                          |
-| --------------- | ------- | -------- | --------------------------------------------------------------------- |
-| `rehideSeconds` | integer | `10`     | Seconds before a revealed section collapses; `0` never does           |
-| `revealOnHover` | boolean | `false`  | Reveal on hover instead of on click                                   |
-| `revealMode`    | string  | `inline` | `inline` slides out beside the chevron; `row` shows a strip under it  |
+| Setting         | Type    | Default | What it does                                                |
+| --------------- | ------- | ------- | ----------------------------------------------------------- |
+| `rehideSeconds` | integer | `10`    | Seconds before a revealed section collapses; `0` never does  |
+| `revealOnHover` | boolean | `false` | Reveal on hover instead of on click                          |
 
 ```bash
 omarchy bar set io.github.terrifiedbug.omaice rehideSeconds 0
 omarchy bar set io.github.terrifiedbug.omaice revealOnHover true --json
-omarchy bar set io.github.terrifiedbug.omaice revealMode row
 ```
 
 ## How it reaches the other widgets
