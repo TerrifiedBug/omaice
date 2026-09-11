@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Services.SystemTray
 import qs.Commons
 import qs.Ui
@@ -36,6 +37,9 @@ BarWidget {
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
   readonly property int rehideSeconds: Model.normalizeRehideSeconds(setting("rehideSeconds", 10), 10)
   readonly property bool revealOnHover: setting("revealOnHover", false) === true
+  readonly property string revealMode: Model.normalizeRevealMode(setting("revealMode", "inline"))
+  // Row reveal needs a horizontal bar; a vertical bar has no "row below".
+  readonly property bool rowMode: revealMode === "row" && !root.vertical
   readonly property bool popupOpen: managePopupOpen || trayMenuOpen
   readonly property var pinnedItems: bucket("pinned")
   readonly property var drawerItems: bucket("drawer")
@@ -48,7 +52,9 @@ BarWidget {
   // Match Waybar's group/tray-expander drawer transition-duration.
   readonly property int animationDuration: 600
   property real revealProgress: expanded ? 1 : 0
-  readonly property real revealExtent: drawerExtent * revealProgress
+  // Row mode draws the hidden set in its own strip, so the chevron block must
+  // stop reserving inline drawer width.
+  readonly property real revealExtent: rowMode ? 0 : drawerExtent * revealProgress
 
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
   // which Quickshell refuses unless the shell root sets `//@ pragma
@@ -197,27 +203,28 @@ BarWidget {
     return result
   }
 
-  function persistTrayState(pinned, hidden) {
+  // updateEntryInline rewrites the whole entry from what it is handed, so
+  // rebuild it off the live settings and overlay the changed keys: a bare
+  // {id, pinned, hidden} would drop rehideSeconds and revealMode on the first
+  // pin. The host treats a settings-only write as an in-place patch (no widget
+  // rebuild), so the manage popup survives it.
+  function persistSettings(changes) {
     if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return
-    // updateEntryInline rewrites the whole entry from what it is handed, so
-    // rebuild it off the live settings: a bare {id, pinned, hidden} would drop
-    // rehideSeconds and revealOnHover on the first pin.
     var entry = { id: root.moduleName }
     for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
-    entry.pinned = pinned
-    entry.hidden = hidden
+    for (var changed in changes) entry[changed] = changes[changed]
     root.settings = entry
     root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
   function togglePin(iid) {
     var next = Model.toggleBucket(root.pinnedIds, root.hiddenIds, iid, "pinned")
-    persistTrayState(next.pinned, next.hidden)
+    persistSettings({ pinned: next.pinned, hidden: next.hidden })
   }
 
   function toggleHide(iid) {
     var next = Model.toggleBucket(root.pinnedIds, root.hiddenIds, iid, "hidden")
-    persistTrayState(next.pinned, next.hidden)
+    persistSettings({ pinned: next.pinned, hidden: next.hidden })
   }
 
   // ---- Ice divider. The hidden set is the host's ModuleSlots for the entries
@@ -245,12 +252,13 @@ BarWidget {
   // The Row (or Column on a vertical bar) that lays out this section's slots.
   readonly property var sectionRow: ownSlot ? ownSlot.parent : null
 
-  // Pointer over the ice section: the chevron's own slot or any revealed
-  // sibling. The facade has no barHovered, so this is narrower than it was on
-  // purpose - the rehide countdown pauses only while the user is on the
-  // section itself.
+  // Pointer over the ice section: the chevron's own slot, any revealed
+  // sibling, or the row strip. The facade has no barHovered, so this is
+  // narrower than it was on purpose - the rehide countdown pauses only while
+  // the user is on the section itself.
   readonly property bool sectionHovered: {
     if (ownSlot && ownSlot.hovered) return true
+    if (stripHover.hovered) return true
     var slots = root.managedSlots
     for (var i = 0; i < slots.length; i++) if (slots[i] && slots[i].hovered) return true
     return false
@@ -283,17 +291,40 @@ BarWidget {
 
   function toggle() { expanded = !expanded }
 
-  // Sibling ModuleSlots of this section on this monitor, in layout order. The
+  // Sibling ModuleSlots of this section on this monitor, in layout order. A
+  // slot is found under the section Row or, while revealed in a row, under the
+  // strip; the layout config is the order, since re-parenting appends. The
   // Repeater is also a child of the Row; the duck-typed test skips it.
   function sectionSlots() {
     if (!sectionRow) return []
-    var out = []
-    var kids = sectionRow.children
+    var found = []
+    collectSlots(sectionRow.children, found)
+    collectSlots(stripFlow.children, found)
+    var order = layoutOrder()
+    found.sort(function(a, b) { return rank(a, order) - rank(b, order) })
+    return found
+  }
+
+  function collectSlots(kids, out) {
     for (var i = 0; i < kids.length; i++) {
       var kid = kids[i]
       if (kid && "activeItem" in kid && "region" in kid && "moduleName" in kid) out.push(kid)
     }
-    return out
+  }
+
+  // Entry ids of this section from the facade's layout copy.
+  function layoutOrder() {
+    var region = ownSlot ? ownSlot.region : ""
+    var layout = root.bar && root.bar.layoutConfig ? root.bar.layoutConfig[region] : null
+    var ids = []
+    if (Array.isArray(layout)) for (var i = 0; i < layout.length; i++) ids.push(TrayModel.entryId(layout[i]))
+    return ids
+  }
+
+  // Unknown ids (layout copy momentarily stale) sort after known ones, stable.
+  function rank(slot, order) {
+    var index = order.indexOf(slot.moduleName)
+    return index === -1 ? order.length : index
   }
 
   function hiddenSlots() {
@@ -316,17 +347,43 @@ BarWidget {
 
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
+  // In row mode a revealed slot lives in the strip instead of the section Row.
   function applyHidden() {
     if (!ownSlot) return
     var next = hiddenSlots()
-    for (var i = 0; i < managedSlots.length; i++)
-      if (managedSlots[i] && next.indexOf(managedSlots[i]) === -1) managedSlots[i].visible = true
-    for (var j = 0; j < next.length; j++) next[j].visible = root.expanded
+    for (var i = 0; i < managedSlots.length; i++) {
+      var gone = managedSlots[i]
+      if (gone && next.indexOf(gone) === -1) returnSlot(gone)
+    }
+    var inStrip = root.rowMode && root.expanded
+    for (var j = 0; j < next.length; j++) {
+      if (inStrip) {
+        next[j].parent = stripFlow
+        next[j].visible = true
+      } else {
+        returnSlot(next[j])
+        next[j].visible = root.expanded
+      }
+    }
+    // Re-append so the tray block is the last thing in the strip whatever
+    // order the slots arrived in.
+    if (inStrip) {
+      stripTrayRow.parent = null
+      stripTrayRow.parent = stripFlow
+    }
     managedSlots = next
   }
 
+  // Back under the section Row, visible. Appending puts it after the chevron,
+  // which is fine while it is invisible or staged visible; layout order comes
+  // from layoutOrder(), not child order.
+  function returnSlot(slot) {
+    if (slot.parent !== sectionRow) slot.parent = sectionRow
+    slot.visible = true
+  }
+
   function releaseHidden() {
-    for (var i = 0; i < managedSlots.length; i++) if (managedSlots[i]) managedSlots[i].visible = true
+    for (var i = 0; i < managedSlots.length; i++) if (managedSlots[i]) returnSlot(managedSlots[i])
     managedSlots = []
   }
 
@@ -401,6 +458,7 @@ BarWidget {
 
   onOwnSlotChanged: reapplySoon()
   onExpandedChanged: applyHidden()
+  onRowModeChanged: applyHidden()
   onStagedWidgetsChanged: applyHidden()
   onManagePopupOpenChanged: if (!managePopupOpen) commitStagedWidgets()
   Component.onCompleted: reapplySoon()
@@ -423,6 +481,17 @@ BarWidget {
       if (!root) return
       root.slotRevision++
       root.reapplySoon()
+    }
+  }
+
+  // Slots moving in and out of the strip change what sectionSlots() finds, so
+  // the manage list has to recompute off this too.
+  Connections {
+    target: stripFlow
+
+    function onChildrenChanged() {
+      if (!root) return
+      root.slotRevision++
     }
   }
 
@@ -512,7 +581,10 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           x: Math.round(root.revealExtent)
-          text: root.expanded ? "\uf054" : "\uf053"  // nf-fa-chevron_right / nf-fa-chevron_left
+          // row: nf-fa-chevron_up / chevron_down; inline: chevron_right / chevron_left
+          text: root.rowMode
+            ? (root.expanded ? "\uf077" : "\uf078")
+            : (root.expanded ? "\uf054" : "\uf053")
           tooltipText: root.expanded ? "Hide" : "Show hidden items"
           onPressed: function(button) {
             if (button === Qt.LeftButton) root.toggle()
@@ -536,7 +608,7 @@ BarWidget {
             layer.enabled: true
 
             Repeater {
-              model: root.drawerItems
+              model: root.rowMode ? [] : root.drawerItems
               TrayItem {}
             }
           }
@@ -633,6 +705,83 @@ BarWidget {
     }
   }
 
+  // Row reveal surface. One layer-shell window per bar instance (so per
+  // monitor), spanning the full width and starting at the bar's screen edge so
+  // that it covers bar + strip: the host positions a widget's keyboard panel
+  // at anchorWindow.height and assumes that window is flush with the edge, so
+  // a widget clicked inside the strip opens its panel below the strip rather
+  // than on top of it. The bar band of the window is transparent and outside
+  // the input mask, so bar clicks fall through. Not a popout: widgets in here
+  // open their own.
+  PanelWindow {
+    id: stripWindow
+
+    readonly property bool atBottom: root.bar && root.bar.position === "bottom"
+    readonly property int rowsHeight: Math.round(stripFlow.childrenRect.height)
+    readonly property int contentWidth: Math.round(stripFlow.childrenRect.width)
+    readonly property int maxWidth: screen ? screen.width - Style.space(8) * 2 : 0
+
+    screen: root.QsWindow.window ? root.QsWindow.window.screen : null
+    visible: root.rowMode && (root.expanded || stripCard.opacity > 0)
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    anchors { top: !atBottom; bottom: atBottom; left: true; right: true }
+    implicitHeight: root.barSize + rowsHeight
+    WlrLayershell.namespace: "omaice-strip"
+    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+    // Input only over the drawn strip; the bar band and the empty width of the
+    // surface pass clicks through to whatever is under them.
+    mask: Region {
+      x: stripCard.x
+      y: stripCard.y
+      width: stripCard.width
+      height: stripCard.height
+    }
+
+    Rectangle {
+      id: stripCard
+      // Right edge lines up with the bar's own right section margin.
+      x: parent.width - Style.space(8) - width
+      y: stripWindow.atBottom ? 0 : root.barSize
+      width: stripWindow.contentWidth
+      height: stripWindow.rowsHeight
+      color: root.bar && root.bar.transparent
+        ? "transparent"
+        : (root.bar ? root.bar.background : Color.background)
+      opacity: root.expanded ? 1 : 0
+
+      // Fade out before the surface unmaps, like PopupCard does.
+      Behavior on opacity {
+        NumberAnimation { duration: 140 }
+      }
+
+      HoverHandler { id: stripHover }
+
+      // Left to right, wrapping at the screen width; the hidden slots are
+      // re-parented in here by applyHidden(), the tray block re-appended last.
+      Flow {
+        id: stripFlow
+        x: 0
+        y: 0
+        width: stripWindow.maxWidth
+        spacing: 0
+        layoutDirection: Qt.LeftToRight
+
+        Row {
+          id: stripTrayRow
+          spacing: root.trayItemGap
+
+          Repeater {
+            model: root.rowMode ? root.drawerItems : []
+            TrayItem {}
+          }
+        }
+      }
+    }
+  }
+
   PopupCard {
     id: managePopup
     anchorItem: root
@@ -656,7 +805,7 @@ BarWidget {
       }
 
       Text {
-        text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show."
+        text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show. Behaviour changes apply at once."
         color: Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -807,6 +956,42 @@ BarWidget {
             onClicked: root.stageWidget(widgetRow.modelData.id, !widgetRow.modelData.hidden, widgetRow.modelData.placed)
           }
         }
+      }
+
+      PanelSeparator {
+        width: manageColumn.width
+        foreground: root.foreground
+      }
+
+      Text {
+        text: "Behaviour"
+        color: Qt.darker(root.foreground, 1.4)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+      }
+
+      // Toggle is stateless: bind checked, flip the setting in onClicked.
+      Toggle {
+        width: manageColumn.width
+        label: "Reveal in a row below the bar"
+        description: root.vertical ? "Needs a horizontal bar" : "Off: slide out beside the chevron"
+        checked: root.revealMode === "row"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        titleSize: Style.font.bodySmall
+        onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
+      }
+
+      Toggle {
+        width: manageColumn.width
+        label: "Reveal on hover"
+        description: "Open when the pointer reaches the chevron"
+        checked: root.revealOnHover
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        titleSize: Style.font.bodySmall
+        onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
       }
     }
   }

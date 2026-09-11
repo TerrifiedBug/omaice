@@ -10,6 +10,11 @@ function normalizeRehideSeconds(value, fallback) {
   return Math.max(0, Math.min(MAX_REHIDE_SECONDS, n))
 }
 
+// "row" reveals the hidden section in a strip under the bar; anything else is inline.
+function normalizeRevealMode(value) {
+  return String(value || "").trim().toLowerCase() === "row" ? "row" : "inline"
+}
+
 // Split a section's entry ids around the divider's index: ids before it are
 // the hidden region, ids after it stay visible. Divider index < 0 hides nothing.
 function partitionEntries(entryIds, dividerIndex) {
@@ -40,6 +45,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     displayLabel: displayLabel,
     normalizeRehideSeconds: normalizeRehideSeconds,
+    normalizeRevealMode: normalizeRevealMode,
     partitionEntries: partitionEntries,
     toggleBucket: toggleBucket
   }
