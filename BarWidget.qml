@@ -719,7 +719,11 @@ BarWidget {
     readonly property bool atBottom: root.bar && root.bar.position === "bottom"
     readonly property int rowsHeight: Math.round(stripFlow.childrenRect.height)
     readonly property int contentWidth: Math.round(stripFlow.childrenRect.width)
-    readonly property int maxWidth: screen ? screen.width - Style.space(8) * 2 : 0
+    // An anchored layer surface spans the screen, but the window's own `width`
+    // still reports its implicit size (500), so geometry inside is measured
+    // off the screen instead.
+    readonly property int surfaceWidth: screen ? screen.width : 0
+    readonly property int maxWidth: Math.max(0, surfaceWidth - Style.space(8) * 2)
 
     screen: root.QsWindow.window ? root.QsWindow.window.screen : null
     visible: root.rowMode && (root.expanded || stripCard.opacity > 0)
@@ -743,7 +747,7 @@ BarWidget {
     Rectangle {
       id: stripCard
       // Right edge lines up with the bar's own right section margin.
-      x: parent.width - Style.space(8) - width
+      x: stripWindow.surfaceWidth - Style.space(8) - width
       y: stripWindow.atBottom ? 0 : root.barSize
       width: stripWindow.contentWidth
       height: stripWindow.rowsHeight
