@@ -72,12 +72,12 @@ reaches the chevron and collapses it shortly after the pointer leaves.
 
 `revealMode row` puts the hidden set in a strip directly under the bar instead
 of sliding it out beside the chevron, so the rest of the bar never shifts. The
-strip is right-aligned under the chevron, wraps onto more lines if the hidden
-widgets are wider than your screen, and closes on the same timer. The chevron
-points down when there is a strip to open and up while it is open. Two things
-are worse in there: widgets in the strip get no bar tooltips, and you cannot
-drag-reorder them from the strip. The right-click "Bar widgets" list still
-moves them.
+strip starts under the chevron and grows to the right, wrapping onto more
+lines if the hidden widgets run out of room, and it closes on the same timer.
+The chevron points down when there is a strip to open and up while it is open.
+Two things are worse in there: widgets in the strip get no bar tooltips, and
+you cannot drag-reorder them from the strip. The right-click "Bar widgets"
+list still moves them.
 
 Right click the chevron for the "Behaviour" toggles at the bottom of the menu:
 the row/inline switch and reveal-on-hover. Both apply straight away without
