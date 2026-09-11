@@ -970,14 +970,12 @@ BarWidget {
         }
 
         // Toggle is stateless: bind checked, flip the setting in onClicked.
+        // No helper text: the labels say it, and the only thing worth warning
+        // about is a vertical bar, which has no row to open.
         Toggle {
           width: manageColumn.width
-          // Short enough not to elide at the card's width; the description
-          // carries the alternative.
-          label: "Show in a row below"
-          description: root.vertical
-            ? "Needs a horizontal bar"
-            : "Off: slide out beside the chevron"
+          label: "Show in a row below the bar"
+          description: root.vertical ? "Needs a horizontal bar" : ""
           checked: root.revealMode === "row"
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -988,7 +986,6 @@ BarWidget {
         Toggle {
           width: manageColumn.width
           label: "Reveal on hover"
-          description: "Open when the pointer reaches the chevron"
           checked: root.revealOnHover
           foreground: root.foreground
           fontFamily: root.fontFamily
