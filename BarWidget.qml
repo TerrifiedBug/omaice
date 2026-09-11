@@ -444,13 +444,22 @@ BarWidget {
     for (var j = 0; j < placed.length; j++) placed[j].parent = row
   }
 
-  // No repaint nudge here: this runs from Component.onDestruction, where the
-  // deferred pass would never fire and would leave every slot hidden. The
-  // layout write that removes this widget rebuilds the section's slots.
+  // Runs from Component.onDestruction, so the repaint queue is dropped first
+  // and every slot is shown outright rather than through show(): a disable or
+  // reload landing inside repaintTimer's frame would otherwise strand slots
+  // hidden, with no timer left alive to show them again. They may draw stale
+  // for a frame; the layout write that removes this widget rebuilds them.
   function releaseHidden() {
+    repaintQueue = []
     var returned = false
     for (var i = 0; i < managedSlots.length; i++) {
-      if (managedSlots[i] && returnSlot(managedSlots[i])) returned = true
+      var slot = managedSlots[i]
+      if (!slot) continue
+      if (slot.parent !== sectionRow) {
+        slot.parent = sectionRow
+        returned = true
+      }
+      slot.visible = true
     }
     if (returned) restoreOrder()
     managedSlots = []
@@ -817,7 +826,25 @@ BarWidget {
     // still reports its implicit size (500), so geometry inside is measured
     // off the screen instead.
     readonly property int surfaceWidth: screen ? screen.width : 0
-    readonly property int maxWidth: Math.max(0, surfaceWidth - Style.space(8) * 2)
+    // Left edge of the chevron in screen coordinates, so the strip hangs off
+    // the divider rather than the section's right margin. The bar surface is
+    // flush with its screen edge and full width, so its content x is screen x.
+    // mapToItem is a one-shot, hence the TransformWatcher dependency.
+    readonly property int chevronX: {
+      slotWatcher.transform  // reactive dependency
+      var host = root.QsWindow.window ? root.QsWindow.window.contentItem : null
+      if (!root.ownSlot || !host) return 0
+      return Math.round(root.ownSlot.mapToItem(host, 0, 0).x)
+    }
+    readonly property int maxWidth: Math.max(0, surfaceWidth - chevronX - Style.space(8))
+
+    // Tracks every layout change between the bar's content surface and the
+    // chevron's slot, which is what keeps chevronX live as widgets come and go.
+    TransformWatcher {
+      id: slotWatcher
+      a: root.QsWindow.window ? root.QsWindow.window.contentItem : null
+      b: root.ownSlot
+    }
 
     screen: root.QsWindow.window ? root.QsWindow.window.screen : null
     visible: root.rowMode && (root.expanded || stripCard.opacity > 0)
@@ -840,8 +867,9 @@ BarWidget {
 
     Rectangle {
       id: stripCard
-      // Right edge lines up with the bar's own right section margin.
-      x: stripWindow.surfaceWidth - Style.space(8) - width
+      // Starts under the chevron and grows right; the clamp only matters if a
+      // single unwrappable widget is wider than the space beside the chevron.
+      x: Math.max(0, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - Style.space(8) - width))
       y: stripWindow.atBottom ? 0 : root.barSize
       width: stripWindow.contentWidth
       height: stripWindow.rowsHeight
