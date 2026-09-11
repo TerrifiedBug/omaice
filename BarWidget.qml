@@ -867,9 +867,7 @@ BarWidget {
     implicitWidth: surfaceWidth
     implicitHeight: root.barSize + rowsHeight
     WlrLayershell.namespace: "omaice-strip"
-    // Overlay, not Top: the click-to-dismiss surface below sits at Top, and
-    // the strip has to take its own clicks before that one does.
-    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
     // Input only over the drawn strip; the bar band and the empty width of the
@@ -921,45 +919,6 @@ BarWidget {
           }
         }
       }
-    }
-  }
-
-  // Click-to-dismiss, for a reveal opened by clicking. A layer surface gets no
-  // signal about clicks that land elsewhere, so the only way to notice one is
-  // to take it: this surface covers everything except the bar itself, and the
-  // click that closes the section is consumed, the same trade the host's own
-  // panels make. Hover mode has hoverCollapseTimer instead and skips this.
-  PanelWindow {
-    id: dismissWindow
-
-    readonly property int screenWidth: screen ? screen.width : 0
-    readonly property int screenHeight: screen ? screen.height : 0
-    readonly property string edge: root.bar ? root.bar.position : "top"
-
-    screen: root.QsWindow.window ? root.QsWindow.window.screen : null
-    visible: root.expanded && !root.revealOnHover
-    color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
-    anchors { top: true; bottom: true; left: true; right: true }
-    implicitWidth: screenWidth
-    implicitHeight: screenHeight
-    WlrLayershell.namespace: "omaice-dismiss"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-
-    // Everything but the bar's own band, so the chevron still toggles and the
-    // rest of the bar keeps working while the section is open.
-    mask: Region {
-      x: dismissWindow.edge === "left" ? root.barSize : 0
-      y: dismissWindow.edge === "top" ? root.barSize : 0
-      width: dismissWindow.screenWidth - (dismissWindow.edge === "left" || dismissWindow.edge === "right" ? root.barSize : 0)
-      height: dismissWindow.screenHeight - (dismissWindow.edge === "top" || dismissWindow.edge === "bottom" ? root.barSize : 0)
-    }
-
-    MouseArea {
-      anchors.fill: parent
-      acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-      onPressed: root.collapse()
     }
   }
 
