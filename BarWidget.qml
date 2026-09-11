@@ -954,6 +954,49 @@ BarWidget {
           width: parent.width
         }
 
+        PanelSeparator {
+          width: manageColumn.width
+          foreground: root.foreground
+        }
+
+        Text {
+          text: "Behaviour"
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
+
+        // Toggle is stateless: bind checked, flip the setting in onClicked.
+        Toggle {
+          width: manageColumn.width
+          label: "Show hidden items in a row below the bar"
+          description: root.vertical
+            ? "Needs a horizontal bar"
+            : "Off: they slide out along the bar beside the chevron"
+          checked: root.revealMode === "row"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          titleSize: Style.font.bodySmall
+          onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
+        }
+
+        Toggle {
+          width: manageColumn.width
+          label: "Reveal on hover"
+          description: "Open when the pointer reaches the chevron"
+          checked: root.revealOnHover
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          titleSize: Style.font.bodySmall
+          onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
+        }
+
+        PanelSeparator {
+          width: manageColumn.width
+          foreground: root.foreground
+        }
+
         Text {
           visible: root.allItems.length === 0
           text: "No tray items reporting."
@@ -993,24 +1036,17 @@ BarWidget {
             readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
             readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
 
-            TrayIcon {
-              id: rowIcon
-              anchors.verticalCenter: parent.verticalCenter
-              anchors.left: parent.left
-              width: 16
-              height: 16
-              icon: rowRoot.modelData.icon
-            }
-
+            // Same shape as a "Bar widgets" row: name on the left, dimmed
+            // while hidden, actions on the right. No icon, so the two lists
+            // read as one.
             Text {
               textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
-              anchors.left: rowIcon.right
-              anchors.leftMargin: Style.space(10)
+              anchors.left: parent.left
               anchors.right: rowHideBtn.left
               anchors.rightMargin: Style.space(8)
               text: rowRoot.displayName
-              color: root.foreground
+              color: rowRoot.isHidden ? Qt.darker(root.foreground, 1.4) : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
@@ -1099,41 +1135,6 @@ BarWidget {
           }
         }
 
-        PanelSeparator {
-          width: manageColumn.width
-          foreground: root.foreground
-        }
-
-        Text {
-          text: "Behaviour"
-          color: Qt.darker(root.foreground, 1.4)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.bold: true
-        }
-
-        // Toggle is stateless: bind checked, flip the setting in onClicked.
-        Toggle {
-          width: manageColumn.width
-          label: "Reveal in a row below the bar"
-          description: root.vertical ? "Needs a horizontal bar" : "Off: slide out beside the chevron"
-          checked: root.revealMode === "row"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          titleSize: Style.font.bodySmall
-          onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
-        }
-
-        Toggle {
-          width: manageColumn.width
-          label: "Reveal on hover"
-          description: "Open when the pointer reaches the chevron"
-          checked: root.revealOnHover
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          titleSize: Style.font.bodySmall
-          onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
-        }
       }
     }
   }
