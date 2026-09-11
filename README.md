@@ -45,11 +45,12 @@ how many widgets you want it to swallow.
 ## Using it
 
 Click the chevron to reveal the hidden section, click again to collapse it. It
-also closes when you click anywhere else. That click is swallowed: a layer
-surface gets told nothing about clicks that land on other windows, so the only
-way to notice one is to take it, which is what Omarchy's own panels do. The
-bar itself stays live, so you can go straight to another bar icon. If you also
-want it to time out, set `rehideSeconds`.
+also closes when you click outside the bar and the revealed items, and that
+click is swallowed: a layer surface gets told nothing about clicks landing on
+other windows, so the only way to notice one is to take it, which is what
+Omarchy's own panels do. The bar is excluded, so the section stays open while
+you use the rest of your bar. If you want it to time out as well, set
+`rehideSeconds`.
 
 To hide a widget, put it to the left of the chevron. That is the entire rule.
 Drag it there with Omarchy's own bar drag-reorder, or right click the chevron
