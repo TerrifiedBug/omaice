@@ -972,10 +972,12 @@ BarWidget {
         // Toggle is stateless: bind checked, flip the setting in onClicked.
         Toggle {
           width: manageColumn.width
-          label: "Show hidden items in a row below the bar"
+          // Short enough not to elide at the card's width; the description
+          // carries the alternative.
+          label: "Show in a row below"
           description: root.vertical
             ? "Needs a horizontal bar"
-            : "Off: they slide out along the bar beside the chevron"
+            : "Off: slide out beside the chevron"
           checked: root.revealMode === "row"
           foreground: root.foreground
           fontFamily: root.fontFamily
