@@ -79,9 +79,9 @@ Two things are worse in there: widgets in the strip get no bar tooltips, and
 you cannot drag-reorder them from the strip. The right-click "Bar widgets"
 list still moves them.
 
-Right click the chevron for the "Behaviour" toggles, just under the menu's
-description: the row/inline switch and reveal-on-hover. Both apply straight
-away without rebuilding the bar.
+Right click the chevron for the "Behaviour" toggles at the top of the menu:
+the row/inline switch and reveal-on-hover. Both apply straight away without
+rebuilding the bar.
 
 It is scriptable too, if you want it on a keybind:
 
