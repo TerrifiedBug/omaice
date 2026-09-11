@@ -851,6 +851,11 @@ BarWidget {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     anchors { top: !atBottom; bottom: atBottom; left: true; right: true }
+    // Both declared, not just height: a widget revealed in the strip anchors
+    // its own popup to this window, and PopupCard clamps the popup's x against
+    // anchorWindow.width. Left at its implicit default the window reports
+    // 500px and every popup opened from the strip gets shoved to the left.
+    implicitWidth: surfaceWidth
     implicitHeight: root.barSize + rowsHeight
     WlrLayershell.namespace: "omaice-strip"
     WlrLayershell.layer: WlrLayer.Top
