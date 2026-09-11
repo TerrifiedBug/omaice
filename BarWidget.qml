@@ -917,207 +917,223 @@ BarWidget {
     contentWidth: managePopup.fittedContentWidth(Style.space(300))
     contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight)
 
-    Column {
-      id: manageColumn
+    // The widget list is as long as the section is, so the card scrolls
+    // rather than running off the screen and burying the Behaviour
+    // toggles at the bottom. Same pattern as the tray menu's rows.
+    Flickable {
+      id: manageFlick
       anchors.fill: parent
-      spacing: Style.space(8)
+      contentWidth: width
+      contentHeight: manageColumn.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
 
-      Text {
-        text: "Hidden section"
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: true
-      }
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-      Text {
-        text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show. Behaviour changes apply at once."
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        wrapMode: Text.WordWrap
-        width: parent.width
-      }
+      Column {
+        id: manageColumn
+        width: manageFlick.width
+        spacing: Style.space(8)
 
-      Text {
-        visible: root.allItems.length === 0
-        text: "No tray items reporting."
-        color: Qt.darker(root.foreground, 1.5)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        font.italic: true
-      }
+        Text {
+          text: "Hidden section"
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
 
-      Text {
-        text: "Tray icons"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
+        Text {
+          text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show. Behaviour changes apply at once."
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+          width: parent.width
+        }
 
-      Repeater {
-        model: root.allItems
-        delegate: Item {
-          id: rowRoot
-          required property var modelData
-          required property int index
-          width: manageColumn.width
-          implicitHeight: 28
+        Text {
+          visible: root.allItems.length === 0
+          text: "No tray items reporting."
+          color: Qt.darker(root.foreground, 1.5)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          font.italic: true
+        }
 
-          readonly property string itemId: String(modelData.id || "")
-          readonly property string displayName: {
-            var t = String(modelData.title || "").trim()
-            if (t) return t
-            var tt = String(modelData.tooltipTitle || "").trim()
-            if (tt) return tt
-            var id = String(modelData.id || "")
-            var slash = id.lastIndexOf("/")
-            return slash !== -1 ? id.substring(slash + 1) : (id || "Unknown")
-          }
-          readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
-          readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
+        Text {
+          text: "Tray icons"
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
 
-          TrayIcon {
-            id: rowIcon
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: parent.left
-            width: 16
-            height: 16
-            icon: rowRoot.modelData.icon
-          }
+        Repeater {
+          model: root.allItems
+          delegate: Item {
+            id: rowRoot
+            required property var modelData
+            required property int index
+            width: manageColumn.width
+            implicitHeight: 28
 
-          Text {
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: rowIcon.right
-            anchors.leftMargin: Style.space(10)
-            anchors.right: rowHideBtn.left
-            anchors.rightMargin: Style.space(8)
-            text: rowRoot.displayName
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
-          }
+            readonly property string itemId: String(modelData.id || "")
+            readonly property string displayName: {
+              var t = String(modelData.title || "").trim()
+              if (t) return t
+              var tt = String(modelData.tooltipTitle || "").trim()
+              if (tt) return tt
+              var id = String(modelData.id || "")
+              var slash = id.lastIndexOf("/")
+              return slash !== -1 ? id.substring(slash + 1) : (id || "Unknown")
+            }
+            readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
+            readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
 
-          Button {
-            id: rowPinBtn
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-            iconText: "\uf08d"
-            text: rowRoot.isPinned ? "Unpin" : "Pin"
-            foreground: root.foreground
-            horizontalPadding: 8
-            verticalPadding: 3
-            iconSize: Style.font.bodySmall
-            fontSize: Style.font.bodySmall
-            onClicked: root.togglePin(rowRoot.itemId)
-          }
+            TrayIcon {
+              id: rowIcon
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: parent.left
+              width: 16
+              height: 16
+              icon: rowRoot.modelData.icon
+            }
 
-          Button {
-            id: rowHideBtn
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: rowPinBtn.left
-            anchors.rightMargin: Style.space(6)
-            iconText: "\uf06e"
-            text: rowRoot.isHidden ? "Show" : "Hide"
-            foreground: root.foreground
-            horizontalPadding: 8
-            verticalPadding: 3
-            iconSize: Style.font.bodySmall
-            fontSize: Style.font.bodySmall
-            onClicked: root.toggleHide(rowRoot.itemId)
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: rowIcon.right
+              anchors.leftMargin: Style.space(10)
+              anchors.right: rowHideBtn.left
+              anchors.rightMargin: Style.space(8)
+              text: rowRoot.displayName
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            Button {
+              id: rowPinBtn
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: parent.right
+              iconText: "\uf08d"
+              text: rowRoot.isPinned ? "Unpin" : "Pin"
+              foreground: root.foreground
+              horizontalPadding: 8
+              verticalPadding: 3
+              iconSize: Style.font.bodySmall
+              fontSize: Style.font.bodySmall
+              onClicked: root.togglePin(rowRoot.itemId)
+            }
+
+            Button {
+              id: rowHideBtn
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: rowPinBtn.left
+              anchors.rightMargin: Style.space(6)
+              iconText: "\uf06e"
+              text: rowRoot.isHidden ? "Show" : "Hide"
+              foreground: root.foreground
+              horizontalPadding: 8
+              verticalPadding: 3
+              iconSize: Style.font.bodySmall
+              fontSize: Style.font.bodySmall
+              onClicked: root.toggleHide(rowRoot.itemId)
+            }
           }
         }
-      }
 
-      PanelSeparator {
-        width: manageColumn.width
-        foreground: root.foreground
-      }
-
-      Text {
-        text: "Bar widgets"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
-
-      // Hiding a widget is a move relative to the chevron, not a flag: the
-      // divider's meaning is positional, so the layout has to say it too.
-      Repeater {
-        model: root.sectionWidgets
-        delegate: Item {
-          id: widgetRow
-          required property var modelData
+        PanelSeparator {
           width: manageColumn.width
-          implicitHeight: 28
+          foreground: root.foreground
+        }
 
-          Text {
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.left: parent.left
-            anchors.right: widgetToggleBtn.left
-            anchors.rightMargin: Style.space(8)
-            text: widgetRow.modelData.name
-            color: widgetRow.modelData.hidden ? Qt.darker(root.foreground, 1.4) : root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
-          }
+        Text {
+          text: "Bar widgets"
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
 
-          Button {
-            id: widgetToggleBtn
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-            iconText: "\uf06e"  // nf-fa-eye
-            text: widgetRow.modelData.hidden ? "Show" : "Hide"
-            foreground: root.foreground
-            horizontalPadding: 8
-            verticalPadding: 3
-            iconSize: Style.font.bodySmall
-            fontSize: Style.font.bodySmall
-            onClicked: root.stageWidget(widgetRow.modelData.id, !widgetRow.modelData.hidden, widgetRow.modelData.placed)
+        // Hiding a widget is a move relative to the chevron, not a flag: the
+        // divider's meaning is positional, so the layout has to say it too.
+        Repeater {
+          model: root.sectionWidgets
+          delegate: Item {
+            id: widgetRow
+            required property var modelData
+            width: manageColumn.width
+            implicitHeight: 28
+
+            Text {
+              textFormat: Text.PlainText
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: parent.left
+              anchors.right: widgetToggleBtn.left
+              anchors.rightMargin: Style.space(8)
+              text: widgetRow.modelData.name
+              color: widgetRow.modelData.hidden ? Qt.darker(root.foreground, 1.4) : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            Button {
+              id: widgetToggleBtn
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: parent.right
+              iconText: "\uf06e"  // nf-fa-eye
+              text: widgetRow.modelData.hidden ? "Show" : "Hide"
+              foreground: root.foreground
+              horizontalPadding: 8
+              verticalPadding: 3
+              iconSize: Style.font.bodySmall
+              fontSize: Style.font.bodySmall
+              onClicked: root.stageWidget(widgetRow.modelData.id, !widgetRow.modelData.hidden, widgetRow.modelData.placed)
+            }
           }
         }
-      }
 
-      PanelSeparator {
-        width: manageColumn.width
-        foreground: root.foreground
-      }
+        PanelSeparator {
+          width: manageColumn.width
+          foreground: root.foreground
+        }
 
-      Text {
-        text: "Behaviour"
-        color: Qt.darker(root.foreground, 1.4)
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
+        Text {
+          text: "Behaviour"
+          color: Qt.darker(root.foreground, 1.4)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
 
-      // Toggle is stateless: bind checked, flip the setting in onClicked.
-      Toggle {
-        width: manageColumn.width
-        label: "Reveal in a row below the bar"
-        description: root.vertical ? "Needs a horizontal bar" : "Off: slide out beside the chevron"
-        checked: root.revealMode === "row"
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        titleSize: Style.font.bodySmall
-        onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
-      }
+        // Toggle is stateless: bind checked, flip the setting in onClicked.
+        Toggle {
+          width: manageColumn.width
+          label: "Reveal in a row below the bar"
+          description: root.vertical ? "Needs a horizontal bar" : "Off: slide out beside the chevron"
+          checked: root.revealMode === "row"
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          titleSize: Style.font.bodySmall
+          onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
+        }
 
-      Toggle {
-        width: manageColumn.width
-        label: "Reveal on hover"
-        description: "Open when the pointer reaches the chevron"
-        checked: root.revealOnHover
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        titleSize: Style.font.bodySmall
-        onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
+        Toggle {
+          width: manageColumn.width
+          label: "Reveal on hover"
+          description: "Open when the pointer reaches the chevron"
+          checked: root.revealOnHover
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          titleSize: Style.font.bodySmall
+          onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
+        }
       }
     }
   }
