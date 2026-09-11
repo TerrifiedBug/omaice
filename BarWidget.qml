@@ -407,15 +407,23 @@ BarWidget {
     return moved
   }
 
-  // The section Row lays its children out in child order, so a slot that came
-  // back from the strip has to be stacked where the layout says it belongs.
+  // The section Row lays its children out in child order, and re-parenting
+  // only ever appends, so a slot back from the strip would draw at the end of
+  // the section. QQuickItem::stackAfter is not exposed to QML here, so the
+  // order is rebuilt by detaching every slot the Row holds and re-appending
+  // them in layout order. The slots are parked on the bar window's own
+  // content item, never another window, so nothing loses its scene graph and
+  // no repaint nudge is needed. Synchronous: no frame is drawn mid-shuffle.
   function restoreOrder() {
-    var order = layoutOrder()
+    var row = sectionRow
+    var host = root.QsWindow.window ? root.QsWindow.window.contentItem : null
+    if (!row || !host) return
     var placed = []
-    var kids = sectionRow.children
-    collectSlots(kids, placed)
+    collectSlots(row.children, placed)
+    var order = layoutOrder()
     placed.sort(function(a, b) { return rank(a, order) - rank(b, order) })
-    for (var i = 1; i < placed.length; i++) placed[i].stackAfter(placed[i - 1])
+    for (var i = 0; i < placed.length; i++) placed[i].parent = host
+    for (var j = 0; j < placed.length; j++) placed[j].parent = row
   }
 
   // No repaint nudge here: this runs from Component.onDestruction, where the
