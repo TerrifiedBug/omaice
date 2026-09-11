@@ -42,19 +42,14 @@ BarWidget {
   readonly property string revealMode: Model.normalizeRevealMode(setting("revealMode", "inline"))
   // Row reveal needs a horizontal bar; a vertical bar has no "row below".
   readonly property bool rowMode: revealMode === "row" && !root.vertical
-  // A panel opened from a revealed widget counts as one of ours: a widget's
-  // popup places itself against the window it lives in, so collapsing while
-  // it is up sends the widget back to the bar and the panel jumps with it.
-  // The host names the widget whose popout is open, and a revealed slot's
-  // activeItem is that widget.
-  readonly property bool slotPopoutOpen: {
-    var active = root.bar ? root.bar.activePopout : null
-    if (!active) return false
-    var slots = root.managedSlots
-    for (var i = 0; i < slots.length; i++) if (slots[i] && slots[i].activeItem === active) return true
-    return false
-  }
-  readonly property bool popupOpen: managePopupOpen || trayMenuOpen || slotPopoutOpen
+  // Any popout on the bar holds the section open. A widget's popup places
+  // itself against the window it lives in, so collapsing while one is up
+  // sends the widget back to the bar and takes its panel with it. Identity is
+  // no help here: the facade hands a plugin `foreignPopoutMarker` instead of
+  // whichever widget actually owns the popout (Bar.qml syncPluginBarApiObjects),
+  // so anything open at all is treated as ours to wait for.
+  readonly property bool barPopoutOpen: root.bar ? !!root.bar.activePopout : false
+  readonly property bool popupOpen: managePopupOpen || trayMenuOpen || barPopoutOpen
   readonly property var pinnedItems: bucket("pinned")
   readonly property var drawerItems: bucket("drawer")
   readonly property var allItems: bucket("all")
