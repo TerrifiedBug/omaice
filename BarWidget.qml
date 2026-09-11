@@ -383,10 +383,14 @@ BarWidget {
       }
     }
     // Re-append so the tray block is the last thing in the strip whatever
-    // order the slots arrived in.
-    if (inStrip) {
+    // order the slots arrived in. Only when a slot actually moved: parking it
+    // on a null parent takes it out of every window, which loses its scene
+    // graph exactly like a slot changing window, so it needs the same repaint
+    // nudge and there is no reason to pay for that on an idempotent pass.
+    if (inStrip && moved.length > 0) {
       stripTrayRow.parent = null
       stripTrayRow.parent = stripFlow
+      moved.push(stripTrayRow)
     }
     // Once per pass: reordering re-parents every slot the Row holds.
     if (returned) restoreOrder()
