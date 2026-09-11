@@ -394,14 +394,28 @@ BarWidget {
     repaintTimer.restart()
   }
 
-  // Back under the section Row, visible. Appending puts it after the chevron,
-  // which is fine while it is invisible or staged visible; layout order comes
-  // from layoutOrder(), not child order. Reports whether the slot moved.
+  // Back under the section Row, visible. Re-parenting appends, which would
+  // park the slot after the chevron at the end of the section, so the Row's
+  // child order is put back from the layout. Reports whether the slot moved.
   function returnSlot(slot) {
     var moved = slot.parent !== sectionRow
-    if (moved) slot.parent = sectionRow
+    if (moved) {
+      slot.parent = sectionRow
+      restoreOrder()
+    }
     slot.visible = true
     return moved
+  }
+
+  // The section Row lays its children out in child order, so a slot that came
+  // back from the strip has to be stacked where the layout says it belongs.
+  function restoreOrder() {
+    var order = layoutOrder()
+    var placed = []
+    var kids = sectionRow.children
+    collectSlots(kids, placed)
+    placed.sort(function(a, b) { return rank(a, order) - rank(b, order) })
+    for (var i = 1; i < placed.length; i++) placed[i].stackAfter(placed[i - 1])
   }
 
   // No repaint nudge here: this runs from Component.onDestruction, where the
