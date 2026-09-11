@@ -925,8 +925,8 @@ BarWidget {
     contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight, Style.space(420))
 
     // The widget list is as long as the section is, so the card scrolls
-    // rather than running off the screen and burying the Behaviour
-    // toggles at the bottom. Same pattern as the tray menu's rows.
+    // rather than running off the screen. Same pattern as the tray menu's
+    // rows; the Behaviour toggles sit above the lists so they never need it.
     Flickable {
       id: manageFlick
       anchors.fill: parent
