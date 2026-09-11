@@ -833,8 +833,12 @@ BarWidget {
     id: stripWindow
 
     readonly property bool atBottom: root.bar && root.bar.position === "bottom"
+    // The card is the content plus its border on each side.
+    readonly property int borderWidth: 1
     readonly property int rowsHeight: Math.round(stripFlow.childrenRect.height)
+    readonly property int cardHeight: rowsHeight > 0 ? rowsHeight + borderWidth * 2 : 0
     readonly property int contentWidth: Math.round(stripFlow.childrenRect.width)
+    readonly property int cardWidth: contentWidth > 0 ? contentWidth + borderWidth * 2 : 0
     // An anchored layer surface spans the screen, but the window's own `width`
     // still reports its implicit size (500), so geometry inside is measured
     // off the screen instead.
@@ -879,7 +883,7 @@ BarWidget {
     // anchorWindow.width. Left at its implicit default the window reports
     // 500px and every popup opened from the strip gets shoved to the left.
     implicitWidth: surfaceWidth
-    implicitHeight: root.barSize + rowsHeight
+    implicitHeight: root.barSize + cardHeight
     WlrLayershell.namespace: "omaice-strip"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -902,8 +906,13 @@ BarWidget {
         ? Math.max(0, stripWindow.surfaceWidth - Style.space(8) - width)
         : Math.max(0, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - Style.space(8) - width))
       y: stripWindow.atBottom ? 0 : root.barSize
-      width: stripWindow.contentWidth
-      height: stripWindow.rowsHeight
+      width: stripWindow.cardWidth
+      height: stripWindow.cardHeight
+      radius: Style.cornerRadius
+      // Same edge the tray menu card uses, so the strip reads as a surface of
+      // its own against whatever is behind it.
+      border.width: stripWindow.borderWidth
+      border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
       color: root.bar && root.bar.transparent
         ? "transparent"
         : (root.bar ? root.bar.background : Color.background)
@@ -921,8 +930,8 @@ BarWidget {
       // re-parented in here by applyHidden(), the tray block re-appended last.
       Flow {
         id: stripFlow
-        x: 0
-        y: 0
+        x: stripWindow.borderWidth
+        y: stripWindow.borderWidth
         width: stripWindow.maxWidth
         spacing: 0
         layoutDirection: Qt.LeftToRight
