@@ -866,7 +866,11 @@ BarWidget {
     }
 
     screen: root.QsWindow.window ? root.QsWindow.window.screen : null
-    visible: root.rowMode && (root.expanded || stripCard.opacity > 0)
+    // No fade-out: the hidden widgets are re-parented back into the bar the
+    // instant the section collapses, so anything still fading here is just the
+    // tray block hanging on alone for a frame. Unmap at once; the card still
+    // fades in on open.
+    visible: root.rowMode && root.expanded
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     anchors { top: !atBottom; bottom: atBottom; left: true; right: true }
@@ -905,7 +909,8 @@ BarWidget {
         : (root.bar ? root.bar.background : Color.background)
       opacity: root.expanded ? 1 : 0
 
-      // Fade out before the surface unmaps, like PopupCard does.
+      // Fade in on open. The surface unmaps on collapse, so the way out is
+      // instant whatever this says.
       Behavior on opacity {
         NumberAnimation { duration: 140 }
       }
