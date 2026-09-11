@@ -952,15 +952,6 @@ BarWidget {
           font.bold: true
         }
 
-        Text {
-          text: "Left of the chevron is hidden. Widget changes apply when this menu closes; pinned tray icons stay visible and hidden ones never show. Behaviour changes apply at once."
-          color: Qt.darker(root.foreground, 1.4)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          wrapMode: Text.WordWrap
-          width: parent.width
-        }
-
         PanelSeparator {
           width: manageColumn.width
           foreground: root.foreground
