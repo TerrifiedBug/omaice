@@ -356,9 +356,13 @@ BarWidget {
     if (!ownSlot) return
     var next = hiddenSlots()
     var moved = []
+    var returned = false
     for (var i = 0; i < managedSlots.length; i++) {
       var gone = managedSlots[i]
-      if (gone && next.indexOf(gone) === -1 && returnSlot(gone)) moved.push(gone)
+      if (gone && next.indexOf(gone) === -1 && returnSlot(gone)) {
+        moved.push(gone)
+        returned = true
+      }
     }
     var inStrip = root.rowMode && root.expanded
     for (var j = 0; j < next.length; j++) {
@@ -367,10 +371,13 @@ BarWidget {
           next[j].parent = stripFlow
           moved.push(next[j])
         }
-        next[j].visible = true
+        show(next[j], true)
       } else {
-        if (returnSlot(next[j])) moved.push(next[j])
-        next[j].visible = root.expanded
+        if (returnSlot(next[j])) {
+          moved.push(next[j])
+          returned = true
+        }
+        show(next[j], root.expanded)
       }
     }
     // Re-append so the tray block is the last thing in the strip whatever
@@ -379,8 +386,17 @@ BarWidget {
       stripTrayRow.parent = null
       stripTrayRow.parent = stripFlow
     }
+    // Once per pass: reordering re-parents every slot the Row holds.
+    if (returned) restoreOrder()
     managedSlots = next
     if (moved.length > 0) repaintMoved(moved)
+  }
+
+  // A slot waiting for its repaint stays hidden until repaintTimer shows it,
+  // so the re-apply that a re-parent triggers cannot cancel the nudge by
+  // setting `visible` back to true within the same frame.
+  function show(slot, visible) {
+    if (repaintQueue.indexOf(slot) === -1) slot.visible = visible
   }
 
   // A slot that changed window keeps the scene graph nodes it built for the
@@ -389,21 +405,21 @@ BarWidget {
   // showing it a frame later rebuilds those nodes against the window it
   // actually lives in. Nothing else marks a moved item dirty.
   function repaintMoved(moved) {
-    for (var i = 0; i < moved.length; i++) moved[i].visible = false
-    repaintQueue = moved
+    var queue = repaintQueue.slice()
+    for (var i = 0; i < moved.length; i++) {
+      moved[i].visible = false
+      if (queue.indexOf(moved[i]) === -1) queue.push(moved[i])
+    }
+    repaintQueue = queue
     repaintTimer.restart()
   }
 
-  // Back under the section Row, visible. Re-parenting appends, which would
-  // park the slot after the chevron at the end of the section, so the Row's
-  // child order is put back from the layout. Reports whether the slot moved.
+  // Back under the section Row. Re-parenting appends, so the caller fixes the
+  // Row's child order once the whole pass is done. Reports whether it moved.
   function returnSlot(slot) {
     var moved = slot.parent !== sectionRow
-    if (moved) {
-      slot.parent = sectionRow
-      restoreOrder()
-    }
-    slot.visible = true
+    if (moved) slot.parent = sectionRow
+    show(slot, true)
     return moved
   }
 
@@ -413,7 +429,9 @@ BarWidget {
   // order is rebuilt by detaching every slot the Row holds and re-appending
   // them in layout order. The slots are parked on the bar window's own
   // content item, never another window, so nothing loses its scene graph and
-  // no repaint nudge is needed. Synchronous: no frame is drawn mid-shuffle.
+  // no repaint nudge is needed. The Row reference is taken first: detaching
+  // this widget's own slot invalidates the sectionRow binding mid-shuffle.
+  // Synchronous, so no frame is drawn while the Row is empty.
   function restoreOrder() {
     var row = sectionRow
     var host = root.QsWindow.window ? root.QsWindow.window.contentItem : null
@@ -430,7 +448,11 @@ BarWidget {
   // deferred pass would never fire and would leave every slot hidden. The
   // layout write that removes this widget rebuilds the section's slots.
   function releaseHidden() {
-    for (var i = 0; i < managedSlots.length; i++) if (managedSlots[i]) returnSlot(managedSlots[i])
+    var returned = false
+    for (var i = 0; i < managedSlots.length; i++) {
+      if (managedSlots[i] && returnSlot(managedSlots[i])) returned = true
+    }
+    if (returned) restoreOrder()
     managedSlots = []
   }
 
@@ -518,7 +540,10 @@ BarWidget {
   }
 
   // One frame after the move, so the item has been through a scene graph pass
-  // in its new window. Owned by this widget, so it dies with it rather than
+  // in its new window. State is read now, not when the move was queued: a
+  // collapse, mode switch or layout write can land inside that frame, and
+  // showing a slot on the strength of stale state would leak a hidden widget
+  // back into the bar. Owned by this widget, so it dies with it rather than
   // running against a corpse.
   Timer {
     id: repaintTimer
@@ -529,9 +554,11 @@ BarWidget {
       var revealed = root.rowMode && root.expanded
       for (var i = 0; i < queue.length; i++) {
         var slot = queue[i]
-        if (!slot) continue
-        // A slot still in the hidden set follows the section's state; one that
-        // left it is back in the bar for good.
+        // A slot the host has since rebuilt or moved elsewhere is not ours to
+        // show; the next apply pass owns whatever replaced it.
+        if (!slot || (slot.parent !== stripFlow && slot.parent !== root.sectionRow)) continue
+        // Still in the hidden set: follow the section. Out of it: back in the
+        // bar for good.
         slot.visible = root.managedSlots.indexOf(slot) === -1 || revealed || root.expanded
       }
     }
