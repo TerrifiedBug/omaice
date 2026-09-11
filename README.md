@@ -45,8 +45,11 @@ how many widgets you want it to swallow.
 ## Using it
 
 Click the chevron to reveal the hidden section, click again to collapse it. It
-also collapses on its own ten seconds after your pointer leaves it. Set
-`rehideSeconds` to `0` if you would rather it stayed put.
+also closes when you click anywhere else. That click is swallowed: a layer
+surface gets told nothing about clicks that land on other windows, so the only
+way to notice one is to take it, which is what Omarchy's own panels do. The
+bar itself stays live, so you can go straight to another bar icon. If you also
+want it to time out, set `rehideSeconds`.
 
 To hide a widget, put it to the left of the chevron. That is the entire rule.
 Drag it there with Omarchy's own bar drag-reorder, or right click the chevron
@@ -96,7 +99,7 @@ omarchy-shell io.github.terrifiedbug.omaice opened
 
 | Setting         | Type    | Default  | What it does                                                          |
 | --------------- | ------- | -------- | --------------------------------------------------------------------- |
-| `rehideSeconds` | integer | `10`     | Seconds before a revealed section collapses; `0` never does           |
+| `rehideSeconds` | integer | `0`      | Extra timeout before a revealed section closes; `0` never does         |
 | `revealOnHover` | boolean | `false`  | Reveal on hover instead of on click                                   |
 | `revealMode`    | string  | `inline` | `inline` slides out beside the chevron; `row` shows a strip under it  |
 

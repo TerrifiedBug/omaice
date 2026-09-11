@@ -15,9 +15,9 @@
     "category": "Status",
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": { "rehideSeconds": 10, "revealOnHover": false, "revealMode": "inline" },
+    "defaults": { "rehideSeconds": 0, "revealOnHover": false, "revealMode": "inline" },
     "schema": [
-      { "key": "rehideSeconds", "type": "integer", "label": "Auto-rehide after (seconds, 0 = never)", "defaultValue": 10, "min": 0, "max": 600, "step": 1 },
+      { "key": "rehideSeconds", "type": "integer", "label": "Auto-hide after (seconds, 0 = never)", "defaultValue": 0, "min": 0, "max": 600, "step": 1, "description": "Extra timeout on top of click-to-dismiss; hover reveal closes on its own" },
       { "key": "revealOnHover", "type": "boolean", "label": "Reveal on hover", "defaultValue": false },
       { "key": "revealMode", "type": "enum", "label": "Reveal hidden items", "options": ["inline", "row"], "defaultValue": "inline", "description": "inline slides them out beside the chevron; row shows them in a strip under the bar" }
     ]
