@@ -838,14 +838,20 @@ BarWidget {
     // Left edge of the chevron in screen coordinates, so the strip hangs off
     // the divider rather than the section's right margin. The bar surface is
     // flush with its screen edge and full width, so its content x is screen x.
-    // mapToItem is a one-shot, hence the TransformWatcher dependency.
+    // mapToItem is a one-shot, hence the TransformWatcher dependency; the
+    // reveal is a dependency too, so every open re-measures. -1 means the
+    // chevron is not placeable yet (mid-rebuild), and the strip falls back to
+    // the section's right margin rather than drawing at the screen's left.
     readonly property int chevronX: {
       slotWatcher.transform  // reactive dependency
+      root.expanded          // re-measure on every reveal
       var host = root.QsWindow.window ? root.QsWindow.window.contentItem : null
-      if (!root.ownSlot || !host) return 0
-      return Math.round(root.ownSlot.mapToItem(host, 0, 0).x)
+      if (!root.ownSlot || !host || root.ownSlot.width <= 0) return -1
+      var x = Math.round(root.ownSlot.mapToItem(host, 0, 0).x)
+      return x > 0 ? x : -1
     }
-    readonly property int maxWidth: Math.max(0, surfaceWidth - chevronX - Style.space(8))
+    readonly property int leftEdge: chevronX < 0 ? Style.space(8) : chevronX
+    readonly property int maxWidth: Math.max(0, surfaceWidth - leftEdge - Style.space(8))
 
     // Tracks every layout change between the bar's content surface and the
     // chevron's slot, which is what keeps chevronX live as widgets come and go.
@@ -881,9 +887,12 @@ BarWidget {
 
     Rectangle {
       id: stripCard
-      // Starts under the chevron and grows right; the clamp only matters if a
-      // single unwrappable widget is wider than the space beside the chevron.
-      x: Math.max(0, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - Style.space(8) - width))
+      // Starts under the chevron (or at the right margin when the chevron is
+      // not placeable) and grows right; the clamp only matters if a single
+      // unwrappable widget is wider than the space beside it.
+      x: stripWindow.chevronX < 0
+        ? Math.max(0, stripWindow.surfaceWidth - Style.space(8) - width)
+        : Math.max(0, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - Style.space(8) - width))
       y: stripWindow.atBottom ? 0 : root.barSize
       width: stripWindow.contentWidth
       height: stripWindow.rowsHeight
