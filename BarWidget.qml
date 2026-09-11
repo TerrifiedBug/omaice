@@ -538,7 +538,13 @@ BarWidget {
   onExpandedChanged: applyHidden()
   onRowModeChanged: applyHidden()
   onStagedWidgetsChanged: applyHidden()
-  onManagePopupOpenChanged: if (!managePopupOpen) commitStagedWidgets()
+  // A Flickable keeps its offset, so a menu reopened after scrolling the
+  // widget list would start part-way down with the Behaviour toggles out of
+  // sight. Same reset the tray menu does.
+  onManagePopupOpenChanged: {
+    if (managePopupOpen) manageFlick.contentY = 0
+    else commitStagedWidgets()
+  }
   Component.onCompleted: reapplySoon()
   Component.onDestruction: releaseHidden()
 
