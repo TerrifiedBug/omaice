@@ -345,23 +345,31 @@ BarWidget {
   // closure outlives the object and runs against its corpse.
   function reapplySoon() { reapplyTimer.restart() }
 
+  // Slots that changed window in the last pass and are waiting to be shown
+  // again; see repaintTimer.
+  property var repaintQueue: []
+
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
   // In row mode a revealed slot lives in the strip instead of the section Row.
   function applyHidden() {
     if (!ownSlot) return
     var next = hiddenSlots()
+    var moved = []
     for (var i = 0; i < managedSlots.length; i++) {
       var gone = managedSlots[i]
-      if (gone && next.indexOf(gone) === -1) returnSlot(gone)
+      if (gone && next.indexOf(gone) === -1 && returnSlot(gone)) moved.push(gone)
     }
     var inStrip = root.rowMode && root.expanded
     for (var j = 0; j < next.length; j++) {
       if (inStrip) {
-        next[j].parent = stripFlow
+        if (next[j].parent !== stripFlow) {
+          next[j].parent = stripFlow
+          moved.push(next[j])
+        }
         next[j].visible = true
       } else {
-        returnSlot(next[j])
+        if (returnSlot(next[j])) moved.push(next[j])
         next[j].visible = root.expanded
       }
     }
@@ -372,16 +380,33 @@ BarWidget {
       stripTrayRow.parent = stripFlow
     }
     managedSlots = next
+    if (moved.length > 0) repaintMoved(moved)
+  }
+
+  // A slot that changed window keeps the scene graph nodes it built for the
+  // old one, so it lands in the strip (or back in the bar) correctly sized,
+  // hovering and clicking fine, and completely unpainted. Hiding it now and
+  // showing it a frame later rebuilds those nodes against the window it
+  // actually lives in. Nothing else marks a moved item dirty.
+  function repaintMoved(moved) {
+    for (var i = 0; i < moved.length; i++) moved[i].visible = false
+    repaintQueue = moved
+    repaintTimer.restart()
   }
 
   // Back under the section Row, visible. Appending puts it after the chevron,
   // which is fine while it is invisible or staged visible; layout order comes
-  // from layoutOrder(), not child order.
+  // from layoutOrder(), not child order. Reports whether the slot moved.
   function returnSlot(slot) {
-    if (slot.parent !== sectionRow) slot.parent = sectionRow
+    var moved = slot.parent !== sectionRow
+    if (moved) slot.parent = sectionRow
     slot.visible = true
+    return moved
   }
 
+  // No repaint nudge here: this runs from Component.onDestruction, where the
+  // deferred pass would never fire and would leave every slot hidden. The
+  // layout write that removes this widget rebuilds the section's slots.
   function releaseHidden() {
     for (var i = 0; i < managedSlots.length; i++) if (managedSlots[i]) returnSlot(managedSlots[i])
     managedSlots = []
@@ -468,6 +493,26 @@ BarWidget {
     id: reapplyTimer
     interval: 0
     onTriggered: root.applyHidden()
+  }
+
+  // One frame after the move, so the item has been through a scene graph pass
+  // in its new window. Owned by this widget, so it dies with it rather than
+  // running against a corpse.
+  Timer {
+    id: repaintTimer
+    interval: 16
+    onTriggered: {
+      var queue = root.repaintQueue
+      root.repaintQueue = []
+      var revealed = root.rowMode && root.expanded
+      for (var i = 0; i < queue.length; i++) {
+        var slot = queue[i]
+        if (!slot) continue
+        // A slot still in the hidden set follows the section's state; one that
+        // left it is back in the bar for good.
+        slot.visible = root.managedSlots.indexOf(slot) === -1 || revealed || root.expanded
+      }
+    }
   }
 
   // A structural shell.json write rebuilds every slot on every monitor (this
