@@ -891,6 +891,11 @@ BarWidget {
     // 500px and every popup opened from the strip gets shoved to the left.
     implicitWidth: surfaceWidth
     implicitHeight: root.barSize + cardHeight
+    // Declared as well as implicit: the strip maps while the repaint nudge
+    // still holds its content invisible, and a surface committed at bar
+    // height keeps that height, leaving the card outside it. The window's
+    // own `height` follows the content as the re-parented slots settle.
+    height: root.barSize + cardHeight
     WlrLayershell.namespace: "omaice-strip"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
