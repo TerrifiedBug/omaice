@@ -921,13 +921,11 @@ BarWidget {
       width: stripWindow.cardWidth
       height: stripWindow.cardHeight
       radius: Style.cornerRadius
-      // Same edge the tray menu card uses, so the strip reads as a surface of
-      // its own against whatever is behind it.
+      // The strip is a popup surface hanging below the bar, so its fill
+      // follows the popup theme and ignores bar transparency.
       border.width: stripWindow.borderWidth
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
-      color: root.bar && root.bar.transparent
-        ? "transparent"
-        : (root.bar ? root.bar.background : Color.background)
+      color: Color.popups.background
       opacity: root.expanded ? 1 : 0
 
       // Fade in on open. The surface unmaps on collapse, so the way out is
