@@ -241,6 +241,12 @@ BarWidget {
   //      bar window. A slot with visible: false reports no extent and the
   //      section Row skips it, so the bar closes over the gap.
   property var managedSlots: []
+  // Where the managed slots go back to. Cached because unregistering the
+  // widget clears the host ModuleSlot's activeItem before this item is
+  // destroyed, so ownSlot, sectionRow and its region are all gone by the time
+  // releaseHidden runs.
+  property var managedSectionRow: null
+  property var managedLayoutOrder: []
   // Bumped whenever the section's slots may have been rebuilt, so the
   // sectionWidgets binding has something to depend on: the slot list comes
   // from a function call, which QML cannot track.
@@ -363,6 +369,9 @@ BarWidget {
   // In row mode a revealed slot lives in the strip instead of the section Row.
   function applyHidden() {
     if (!ownSlot) return
+    // Snapshot the teardown destinations while the scene is still reachable.
+    managedSectionRow = sectionRow
+    managedLayoutOrder = layoutOrder()
     var next = hiddenSlots()
     var moved = []
     var returned = false
@@ -430,8 +439,14 @@ BarWidget {
   // Back under the section Row. Re-parenting appends, so the caller fixes the
   // Row's child order once the whole pass is done. Reports whether it moved.
   function returnSlot(slot) {
-    var moved = slot.parent !== sectionRow
-    if (moved) slot.parent = sectionRow
+    // Never orphan a host-owned slot when the row is unavailable.
+    var row = sectionRow || managedSectionRow
+    if (!row) {
+      show(slot, true)
+      return false
+    }
+    var moved = slot.parent !== row
+    if (moved) slot.parent = row
     show(slot, true)
     return moved
   }
@@ -445,13 +460,17 @@ BarWidget {
   // no repaint nudge is needed. The Row reference is taken first: detaching
   // this widget's own slot invalidates the sectionRow binding mid-shuffle.
   // Synchronous, so no frame is drawn while the Row is empty.
-  function restoreOrder() {
-    var row = sectionRow
-    var host = root.QsWindow.window ? root.QsWindow.window.contentItem : null
-    if (!row || !host) return
+  function restoreOrder(rowOverride, orderOverride) {
+    var row = rowOverride || sectionRow
+    if (!row) return
+    // If the window is unavailable during teardown, row.parent is a
+    // same-window parking item, so no slot loses its scene graph.
+    var host = (root.QsWindow.window ? root.QsWindow.window.contentItem : null) || row.parent
+    if (!host) return
     var placed = []
     collectSlots(row.children, placed)
-    var order = layoutOrder()
+    // A supplied snapshot wins even when empty: ownSlot is dead by teardown.
+    var order = orderOverride === undefined || orderOverride === null ? layoutOrder() : orderOverride
     placed.sort(function(a, b) { return rank(a, order) - rank(b, order) })
     for (var i = 0; i < placed.length; i++) placed[i].parent = host
     for (var j = 0; j < placed.length; j++) placed[j].parent = row
@@ -464,18 +483,24 @@ BarWidget {
   // for a frame; the layout write that removes this widget rebuilds them.
   function releaseHidden() {
     repaintQueue = []
+    // Snapshot wins: the sectionRow binding reads through the dead ownSlot.
+    var row = managedSectionRow || sectionRow
     var returned = false
+    // Never orphan a host-owned slot: a null parent drops another plugin's
+    // widget out of the scene until the next structural layout write.
     for (var i = 0; i < managedSlots.length; i++) {
       var slot = managedSlots[i]
       if (!slot) continue
-      if (slot.parent !== sectionRow) {
-        slot.parent = sectionRow
+      if (row && slot.parent !== row) {
+        slot.parent = row
         returned = true
       }
       slot.visible = true
     }
-    if (returned) restoreOrder()
+    if (returned) restoreOrder(row, managedLayoutOrder)
     managedSlots = []
+    managedSectionRow = null
+    managedLayoutOrder = []
   }
 
   // No registry is reachable on the facade, so the label is derived from the
