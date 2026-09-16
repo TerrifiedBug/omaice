@@ -968,13 +968,15 @@ BarWidget {
     bar: root.bar
     open: root.managePopupOpen
     contentWidth: managePopup.fittedContentWidth(Style.space(300))
-    // Capped rather than as tall as the list: the rows scroll, so a card that
-    // filled the screen only got in the way. Same cap as the tray menu.
-    contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight, Style.space(420))
+    // No fixed cap: the card grows with the two lists up to the viewport
+    // (PopupCard.availableCardHeight = screen minus bar and margins), then
+    // scrolls. The tray/app lists can be long; 420px forced scrolling on
+    // bars with only a handful of managed items.
+    contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight)
 
-    // The widget list is as long as the section is, so the card scrolls
-    // rather than running off the screen. Same pattern as the tray menu's
-    // rows; the Behaviour toggles sit above the lists so they never need it.
+    // Past the viewport the card scrolls rather than running off the
+    // screen. Same pattern as the tray menu's rows; the Behaviour toggles
+    // sit above the lists so they never need it.
     Flickable {
       id: manageFlick
       anchors.fill: parent
