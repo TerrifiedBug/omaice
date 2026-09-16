@@ -172,6 +172,57 @@ BarWidget {
     return String(icon || "")
   }
 
+  // Icon for a bar-widget manage row, harvested from the widget's bar
+  // button. The button is the first WidgetButton under the slot's
+  // activeItem, found by that class's property signature (keepSpace +
+  // concealed + bar) — popup Buttons are BorderSurfaces and lack those,
+  // and scanning for any short text instead wandered into popup content
+  // and surfaced badges like "!" instead of the bar glyph. Three render
+  // shapes are covered: an iconComponent (re-instantiated here; QML
+  // components capture their definition context), a text glyph (only
+  // symbol codepoints are kept, so "85% " + battery yields the battery),
+  // or neither (image-drawn icons, no battery/touchpad on this machine)
+  // -> a dimmed puzzle-piece fallback, so no row is left blank.
+  function findBarButton(item) {
+    if (!item) return null
+    var queue = [item]
+    var visited = 0
+    while (queue.length > 0 && visited < 80) {
+      var node = queue.shift()
+      visited++
+      if (node && "keepSpace" in node && "concealed" in node && "bar" in node) return node
+      var kids = node.children || []
+      for (var i = 0; i < kids.length; i++) queue.push(kids[i])
+    }
+    return null
+  }
+
+  function buttonGlyph(btn) {
+    var t = btn ? btn.text : ""
+    if (typeof t !== "string" || t === "") return ""
+    var g = symbolCodepoints(t)
+    return g !== "" ? g : (t.length <= 4 ? t : "")
+  }
+
+  function buttonIconComponent(btn) {
+    return (btn && "iconComponent" in btn) ? btn.iconComponent : null
+  }
+
+  function symbolCodepoints(text) {
+    var out = ""
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i)
+      if (c >= 0xD800 && c <= 0xDBFF && i + 1 < text.length) {
+        // Astral-plane glyph (nerd fonts put many icons above U+FFFF).
+        out += text.slice(i, i + 2)
+        i++
+      } else if ((c >= 0xE000 && c <= 0xF8FF) || (c >= 0x2000 && c <= 0x2BFF)) {
+        out += text[i]
+      }
+    }
+    return out
+  }
+
   // Symbolic icons ship a fixed fill (often near-white) that the host is meant
   // to recolor to its foreground; detect them by the freedesktop "-symbolic"
   // name suffix so they can be tinted instead of rendered as-is.
@@ -287,7 +338,7 @@ BarWidget {
     var slots = sectionSlots()
     var divider = slots.indexOf(ownSlot)
     if (divider === -1) return []
-    var parts = Model.partitionEntries(slots.map(function(slot) { return slot.moduleName }), divider)
+    var parts = Model.partitionEntries(slots, divider)
     var rows = []
     for (var i = 0; i < parts.hidden.length; i++) rows.push(widgetRow(parts.hidden[i], true))
     for (var j = 0; j < parts.visible.length; j++) rows.push(widgetRow(parts.visible[j], false))
@@ -481,9 +532,11 @@ BarWidget {
   // No registry is reachable on the facade, so the label is derived from the
   // layout id. `placed` is where the layout has it; `hidden` is what the
   // popup shows.
-  function widgetRow(id, placed) {
+  function widgetRow(slot, placed) {
+    var id = slot.moduleName
     return {
       id: id,
+      slot: slot,
       name: Model.displayLabel(id),
       placed: placed,
       staged: stagedWidgets[id] !== undefined,
@@ -1081,13 +1134,24 @@ BarWidget {
             readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
             readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
 
-            // Same shape as a "Bar widgets" row: name on the left, dimmed
-            // while hidden, actions on the right. No icon, so the two lists
-            // read as one.
+            // Same shape as a "Bar widgets" row: icon cell on the left
+            // (real app icon here, bar glyph there), name, dimmed while
+            // hidden, actions on the right — the two lists read as one.
+            TrayIcon {
+              id: rowIcon
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(16)
+              height: Style.space(16)
+              icon: rowRoot.modelData.icon
+              opacity: rowRoot.isHidden ? 0.55 : 1.0
+            }
+
             Text {
               textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
-              anchors.left: parent.left
+              anchors.left: rowIcon.right
+              anchors.leftMargin: Style.space(8)
               anchors.right: rowHideBtn.left
               anchors.rightMargin: Style.space(8)
               text: rowRoot.displayName
@@ -1151,10 +1215,57 @@ BarWidget {
             width: manageColumn.width
             implicitHeight: 28
 
+            // Icon cell matches the tray rows': the widget's own bar icon
+            // (iconComponent re-instantiated, else its text glyph), empty
+            // space when neither exists, so rows that lack an icon keep
+            // the same left edge.
+            Item {
+              id: widgetIconCell
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              width: Style.space(16)
+              height: Style.space(16)
+              clip: true
+              opacity: widgetRow.modelData.hidden ? 0.55 : 1.0
+
+              // Harvest when the popup OPENS, not when the row list last
+              // rebuilt: slots' activeItem may still be null at shell
+              // startup (the sectionWidgets rebuild races bar population),
+              // which cached blank icons for widgets that do have one.
+              readonly property var barButton: {
+                if (!root.managePopupOpen) return null
+                return root.findBarButton(widgetRow.modelData.slot.activeItem)
+              }
+              readonly property string glyph: root.buttonGlyph(barButton)
+              readonly property var iconComponent: barButton ? root.buttonIconComponent(barButton) : null
+
+              Loader {
+                anchors.fill: parent
+                active: widgetIconCell.iconComponent !== null
+                sourceComponent: widgetIconCell.iconComponent
+              }
+
+              Text {
+                anchors.fill: parent
+                visible: widgetIconCell.iconComponent === null
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                // Puzzle piece when the widget has no harvestable icon at
+                // all (image-drawn, or its hardware is absent here), dimmed
+                // to read as "generic" next to real glyphs.
+                text: widgetIconCell.glyph !== "" ? widgetIconCell.glyph : "\uf12e"
+                opacity: widgetIconCell.glyph !== "" ? 1.0 : 0.45
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
             Text {
               textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
-              anchors.left: parent.left
+              anchors.left: widgetIconCell.right
+              anchors.leftMargin: Style.space(8)
               anchors.right: widgetToggleBtn.left
               anchors.rightMargin: Style.space(8)
               text: widgetRow.modelData.name
