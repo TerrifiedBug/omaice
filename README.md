@@ -1,22 +1,16 @@
 # OmaIce
 
-A chevron for the Omarchy bar that hides everything to its left in its own
-section, bar widgets and tray icons alike. Click it when you want them back.
+A chevron for the Omarchy bar. Everything to its left in that section hides
+behind it, bar widgets and tray icons alike. Click it when you want them back.
 
-Omarchy already ships a chevron, but it belongs to the system tray and only ever
-hides tray icons. Bar widgets have nowhere to go: WhatsApp, Spotify, a VPN
-indicator, the half-dozen things that accumulate on the right. OmaIce replaces
-that chevron with one that treats the whole section as fair game.
+Omarchy's own chevron belongs to the system tray, so it only ever hides tray
+icons. Bar widgets have nowhere to go, and they pile up: Spotify, a VPN
+indicator, whatever else you installed last week. OmaIce takes over that spot
+and treats the whole section as fair game.
 
 ![the collapsed bar, then the same bar revealed](preview.png)
 
-## Requirements
-
-OmaIce requires Omarchy 4.0.3 or later. The plugin is QML loaded into the shell
-you are already running, so it installs from git and runs in process.
-
-Earlier releases are no longer supported. The current code finds its bar slot by
-walking the QML scene, which works on 4.0.2 as well, but only 4.0.3 is tested.
+Needs Omarchy 4.0.3 or later.
 
 ## Install
 
@@ -25,122 +19,105 @@ omarchy plugin add https://github.com/TerrifiedBug/omaice --enable --yes
 omarchy plugin disable omarchy.tray
 ```
 
-Both commands matter. OmaIce draws the system tray itself, so the built-in tray
-widget has to step aside; leave it enabled and you get two chevrons and every
-tray icon twice. Order matters too, pleasantly: `--enable` drops OmaIce directly
-after the tray, so the only thing behind your new chevron is the old tray
-widget. The second command tidies away the leftover.
+Both commands matter. OmaIce draws the tray itself, so leaving the built-in tray
+widget enabled gives you two chevrons and every icon twice. `--enable` drops
+OmaIce right after the tray, so the second command tidies away the only thing
+behind your new chevron.
 
-If you install with the tray already disabled, OmaIce lands at the end of the
-section instead, which means everything in it starts out hidden. Nothing is
-lost; click the chevron to see it all, then park it where you want the boundary:
+If the tray was already disabled, OmaIce lands at the end of the section and
+everything in it starts out hidden. Click the chevron to see it all, then park
+it where you want the line to be:
 
 ```bash
 omarchy bar move io.github.terrifiedbug.omaice --section right --index <n>
 ```
 
-Everything left of the chevron in that section is the hidden set, so `<n>` is
-how many widgets you want it to swallow.
+Everything left of it is hidden, so `<n>` is how many widgets it swallows.
 
 ## Using it
 
-Click the chevron to reveal the hidden section, click again to collapse it. It
-stays open until you do, so it will not vanish while you are working next to
-it. Set `rehideSeconds` if you want it to close on its own after a while.
+Click to reveal, click again to collapse. It stays open until you say
+otherwise, so it will not vanish while you are using something next to it. Set
+`rehideSeconds` if you want it closing on its own.
 
-To hide a widget, put it to the left of the chevron. That is the entire rule.
-Drag it there with Omarchy's own bar drag-reorder, or right click the chevron
-and use the "Bar widgets" list.
+To hide a widget, put it left of the chevron. That is the whole rule. Drag it
+there, or right click the chevron and use the "Bar widgets" list.
 
-The list is built for changing your mind: it stays open however many rows you
-toggle, and the bar shows you the result as you go, so you can shuffle five
-widgets and watch the section shrink before anything is saved. The moves are
-written to your layout when you close the menu, one `omarchy bar move` per
-widget you changed, so the bar does blink once per change as it re-lays out.
-Nothing is written while the menu is open.
+That list is built for changing your mind. It stays open however many rows you
+flip, and the bar previews the result as you go, so you can shuffle five widgets
+and watch the section shrink before anything is written. The moves go to your
+layout when you close the menu, and the bar blinks once per widget you moved.
+Names in the list come from each widget's own manifest, so you get
+`OmaProton VPN` instead of a guess at its id.
 
-Widget names in that list come from the widget's id, so a plugin shows up as
-`Omaproton vpn` rather than the name its author picked. The host does not hand
-plugins its widget registry.
+Some widgets you never want to see. Press "Always hide" on one and it goes,
+whichever side of the chevron it was sitting on, and it stays gone when you
+reveal. Its row then reads dimmed with a "Stop hiding" button that brings it
+straight back to where your layout already has it. Neither direction moves
+anything, so nothing jumps and the bar does not blink. When you do need one of
+them, `revealAll` opens the section with those widgets included, and the next
+collapse forgets them again.
 
-Right click also pins and hides individual tray icons. A pinned icon stays in
-the bar even while the section is collapsed; a hidden one never appears at all.
-Everything else lives behind the chevron.
+Right click also pins and hides individual tray icons. A pinned icon stays put
+even while the section is collapsed. A hidden one never shows up at all.
 
-If you prefer hover, `revealOnHover true` reveals the section when your pointer
-reaches the chevron and collapses it shortly after the pointer leaves.
+Same menu, "Behaviour" at the top: reveal on hover, a strip under the bar
+instead of an inline reveal, and the indicator you want. Chevron, one dot or
+three. All of them turn when the section opens, which on the dots reads as
+sitting still. Every toggle applies straight away.
 
-`revealMode row` puts the hidden set in a strip directly under the bar instead
-of sliding it out beside the chevron, so the rest of the bar never shifts. The
-strip starts under the chevron and grows to the right, wrapping onto more
-lines if the hidden widgets run out of room, and it closes on the same timer.
-The chevron points down when there is a strip to open and up while it is open.
-Two things are worse in there: widgets in the strip get no bar tooltips, and
-you cannot drag-reorder them from the strip. The right-click "Bar widgets"
-list still moves them.
+Inline reveal fades the widgets out of the chevron one after another, nearest
+first, and collapsing runs it backwards. The strip opens in one go instead. Two
+things are worse in the strip: no bar tooltips, and you cannot drag-reorder from
+it. The "Bar widgets" list still moves them.
 
-Right click the chevron for the "Behaviour" toggles at the top of the menu:
-the row/inline switch and reveal-on-hover. Both apply straight away without
-rebuilding the bar.
-
-It is scriptable too, if you want it on a keybind:
+Handy on a keybind:
 
 ```bash
 omarchy-shell io.github.terrifiedbug.omaice toggle
 omarchy-shell io.github.terrifiedbug.omaice reveal
 omarchy-shell io.github.terrifiedbug.omaice hide
+omarchy-shell io.github.terrifiedbug.omaice revealAll
 omarchy-shell io.github.terrifiedbug.omaice opened
 ```
 
 ## Settings
 
-| Setting         | Type    | Default  | What it does                                                          |
-| --------------- | ------- | -------- | --------------------------------------------------------------------- |
-| `rehideSeconds` | integer | `0`      | Extra timeout before a revealed section closes; `0` never does         |
-| `revealOnHover` | boolean | `false`  | Reveal on hover instead of on click                                   |
-| `revealMode`    | string  | `inline` | `inline` slides out beside the chevron; `row` shows a strip under it  |
+| Setting         | Type    | Default   | What it does                                                         |
+| --------------- | ------- | --------- | -------------------------------------------------------------------- |
+| `rehideSeconds` | integer | `0`       | Timeout before a revealed section closes; `0` never does              |
+| `revealOnHover` | boolean | `false`   | Reveal on hover instead of on click                                  |
+| `revealMode`    | string  | `inline`  | `inline` slides out beside the chevron; `row` shows a strip under it |
+| `icon`          | string  | `chevron` | Indicator: `chevron`, `dot` or `dots`                                |
 
 ```bash
 omarchy bar set io.github.terrifiedbug.omaice rehideSeconds 0
 omarchy bar set io.github.terrifiedbug.omaice revealOnHover true --json
 omarchy bar set io.github.terrifiedbug.omaice revealMode row
+omarchy bar set io.github.terrifiedbug.omaice icon dots
 ```
 
-## How it reaches the other widgets
+## How it works
 
-Omarchy mounts every bar entry in a slot, and a slot marked invisible reports no
-width, so the section closes over it. OmaIce flips that flag on the slots
-sitting before it in its own section, on its own monitor, which means collapsing
-and revealing writes nothing to disk and rebuilds nothing. Only *moving* a
-widget across the chevron touches your layout.
+Omarchy mounts every bar entry in a slot, and an invisible slot takes up no
+width, so the section closes over it. OmaIce flips that flag on the slots in
+front of it. Nothing is written to disk when you reveal or collapse, and nothing
+rebuilds. Only moving a widget across the chevron touches your layout.
 
-Getting at those slots takes a detour. Omarchy 4.0.3 hands a third-party widget
-a bar facade with colours, geometry, tooltips, popouts and the plugin's own
-widgets on it, and no way to see any other widget. So OmaIce walks the QML scene
-instead: from its own item up to the slot that mounts it, then sideways to the
-slots laid out beside it. Upstream documents the scene as the one thing the
-facade cannot isolate a visual child from (`shell/Ui/PluginBarApi.qml`), and
-there is no supported API for this. If a future Omarchy changes the bar's
-structure or moves plugins out of process, OmaIce logs
+There is no supported API for reaching those slots, so OmaIce walks the QML
+scene to find them. If a future Omarchy rearranges the bar, OmaIce logs
 
 ```
 omaice: own bar slot not reachable; only tray icons are hidden
 ```
 
-once and runs as a tray drawer: chevron, reveal, auto-rehide and tray pin/hide
-keep working, the "Bar widgets" list is empty.
+once and carries on as a tray drawer, with an empty "Bar widgets" list.
 [omacom/omarchy#10937](https://github.com/omacom/omarchy/issues/10937) is the
-open request for a supported route.
+open request for a proper route.
 
-The state is re-applied whenever the bar rebuilds its slots, so dragging a
-widget, running `omarchy bar move`, or enabling another plugin will not leak a
-hidden widget back into view.
-
-Because "hidden" means "left of the chevron", the hidden set is always a
-contiguous run at the start of the section. Hiding widgets that are scattered
-through the bar gathers them together in front of the chevron. That is the
-mechanism showing through, and it is why removing OmaIce leaves them where you
-put them rather than springing them back to their old spots.
+One side effect worth knowing: since "hidden" means "left of the chevron",
+hiding widgets from all over the bar gathers them together in front of it. That
+is also why removing OmaIce leaves them where you put them.
 
 ## Uninstall
 
@@ -149,11 +126,10 @@ omarchy plugin remove io.github.terrifiedbug.omaice
 omarchy plugin enable omarchy.tray --section right --index 0
 ```
 
-Removal is clean: the entry leaves your `shell.json`, the plugin folder is
-deleted, and every widget it was hiding becomes visible again immediately. The
-second command puts the stock tray back; adjust the index to place it. Your
-pinned and hidden tray-icon choices belonged to OmaIce, so the stock tray starts
-from its own.
+Your entry leaves `shell.json`, the folder goes, and every widget it was hiding
+comes back immediately. The second command puts the stock tray back; adjust the
+index to place it. Your pinned and hidden tray icons belonged to OmaIce, so the
+stock tray starts from its own.
 
 `omarchy plugin disable io.github.terrifiedbug.omaice` does the same thing
 temporarily, without deleting anything.
@@ -163,4 +139,4 @@ temporarily, without deleting anything.
 MIT, see [LICENSE](LICENSE). The tray rendering, meaning icons, menus and
 pinning, is vendored from
 [omacom/omarchy](https://github.com/omacom/omarchy)'s own tray widget, so it
-behaves like the one it replaces; [NOTICE](NOTICE) has the upstream copyright.
+behaves like the one it replaces. [NOTICE](NOTICE) has the upstream copyright.

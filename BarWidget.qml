@@ -27,6 +27,9 @@ BarWidget {
   moduleName: "io.github.terrifiedbug.omaice"
 
   property bool expanded: false
+  // Peek state for the always-hidden set: set by the revealAll IPC only, and
+  // cleared by any collapse, so a plain reveal never leaks those widgets back.
+  property bool revealAll: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
   property var activeTrayItem: null
@@ -35,6 +38,18 @@ BarWidget {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
+  readonly property string icon: Model.normalizeIcon(setting("icon", "chevron"))
+  // Widgets that stay hidden whichever side of the chevron they sit on. Not in
+  // the manifest schema: like pinned/hidden it is a list the host form cannot
+  // produce, and persistSettings rebuilds the entry so the key survives.
+  readonly property var alwaysHiddenIds: Model.normalizeIdList(settings.alwaysHidden)
+  // chevron: nf-fa-chevron_left, dots: nf-fa-ellipsis_h. A plain bullet
+  // matches one ellipsis dot; every Nerd Font circle draws much bigger.
+  readonly property string iconGlyph: icon === "dot"
+    ? "\u2022"
+    : icon === "dots"
+      ? "\uf141"
+      : "\uf053"
   // 0 by default: a click-mode reveal closes when you click off it, not on a
   // clock. Set it if you want a timeout as well.
   readonly property int rehideSeconds: Model.normalizeRehideSeconds(setting("rehideSeconds", 0), 0)
@@ -274,6 +289,11 @@ BarWidget {
   readonly property bool sectionHovered: {
     if (ownSlot && ownSlot.hovered) return true
     if (stripHover.hovered) return true
+    // In row mode the strip card's own handler already covers every revealed
+    // widget, so the per-slot check below adds nothing but a way for the
+    // section to stay open after the pointer has gone: a slot re-parented into
+    // another window can keep reporting hovered from the window it left.
+    if (root.rowMode) return false
     var slots = root.managedSlots
     for (var i = 0; i < slots.length; i++) if (slots[i] && slots[i].hovered) return true
     return false
@@ -285,26 +305,43 @@ BarWidget {
   // moves are committed as one shell command when the popup closes.
   property var stagedWidgets: ({})
 
+  // The slots a reveal actually shows: the managed set minus the always-hidden
+  // ones, unless the revealAll peek is on. Every input is a property, so the
+  // binding tracks them.
+  readonly property var revealableSlots: managedSlots.filter(function(slot) {
+    return slot && (!isAlwaysHidden(slot) || root.revealAll)
+  })
+
   // Entries sharing this widget's section, split by the divider, for the
   // manage popup. Slot order is layout order, so the slots are the layout.
   readonly property var sectionWidgets: {
     var revision = root.slotRevision
     var staged = root.stagedWidgets
+    var always = root.alwaysHiddenIds
     var slots = sectionSlots()
     var divider = slots.indexOf(ownSlot)
     if (divider === -1) return []
-    var parts = Model.partitionEntries(slots.map(function(slot) { return slot.moduleName }), divider)
     var rows = []
-    for (var i = 0; i < parts.hidden.length; i++) rows.push(widgetRow(parts.hidden[i], true))
-    for (var j = 0; j < parts.visible.length; j++) rows.push(widgetRow(parts.visible[j], false))
+    for (var i = 0; i < slots.length; i++) {
+      if (i === divider) continue
+      rows.push(widgetRow(slots[i], i < divider))
+    }
     return rows
   }
 
   function expand() { expanded = true }
 
-  function collapse() { expanded = false }
+  // Any collapse drops the peek, so the next plain reveal leaves the
+  // always-hidden widgets where they are.
+  function collapse() {
+    expanded = false
+    revealAll = false
+  }
 
-  function toggle() { expanded = !expanded }
+  function toggle() {
+    if (expanded) collapse()
+    else expand()
+  }
 
   // Sibling ModuleSlots of this section on this monitor, in layout order. A
   // slot is found under the section Row or, while revealed in a row, under the
@@ -342,6 +379,13 @@ BarWidget {
     return index === -1 ? order.length : index
   }
 
+  function isAlwaysHidden(slot) {
+    return root.alwaysHiddenIds.indexOf(slot.moduleName) !== -1
+  }
+
+  // The positional hidden set plus every always-hidden widget, whichever side
+  // of the chevron it sits on. One pass over the slots, so the result keeps
+  // layout order.
   function hiddenSlots() {
     var slots = sectionSlots()
     var divider = slots.indexOf(ownSlot)
@@ -349,7 +393,7 @@ BarWidget {
     var result = []
     for (var i = 0; i < slots.length; i++) {
       if (i === divider) continue
-      if (stagedHidden(slots[i].moduleName, i < divider)) result.push(slots[i])
+      if (stagedHidden(slots[i].moduleName, i < divider) || isAlwaysHidden(slots[i])) result.push(slots[i])
     }
     return result
   }
@@ -384,18 +428,34 @@ BarWidget {
     }
     var inStrip = root.rowMode && root.expanded
     for (var j = 0; j < next.length; j++) {
+      // An always-hidden widget never enters the strip and never follows a
+      // reveal; it comes back only while the revealAll peek is on.
+      if (isAlwaysHidden(next[j]) && !root.revealAll) {
+        if (returnSlot(next[j])) {
+          moved.push(next[j])
+          returned = true
+        }
+        show(next[j], false)
+        continue
+      }
       if (inStrip) {
         if (next[j].parent !== stripFlow) {
           next[j].parent = stripFlow
           moved.push(next[j])
         }
+        // A slot switching to the strip mid-fade must not carry the cascade
+        // transform into a card that does its own fade.
+        resetTransform(next[j])
         show(next[j], true)
       } else {
         if (returnSlot(next[j])) {
           moved.push(next[j])
           returned = true
         }
-        show(next[j], root.expanded)
+        // A collapsing widget stays mounted until its fade has finished, so
+        // the section gives the width back once it is actually gone rather
+        // than sliding its neighbours through it.
+        show(next[j], root.expanded || (!root.rowMode && root.revealProgress > 0.001))
       }
     }
     // Re-append so the tray block is the last thing in the strip whatever
@@ -412,6 +472,44 @@ BarWidget {
     if (returned) restoreOrder()
     managedSlots = next
     if (moved.length > 0) repaintMoved(moved)
+    // A rebuild mid-animation has to land on the current frame of the cascade.
+    applyReveal()
+  }
+
+  // Pocket-style cascade, inline mode only: each revealable slot fades and
+  // grows out of the indicator, the one nearest it leading. Row mode keeps its
+  // instant re-parent and the card's own fade.
+  function applyReveal() {
+    if (root.rowMode) return
+    var list = root.revealableSlots
+    var n = list.length
+    for (var i = 0; i < n; i++) {
+      var slot = list[i]
+      if (!slot) continue
+      // Layout order puts the slot nearest the chevron last, and that one
+      // leads, so the index is counted from the far end.
+      var f = Model.revealFraction(root.revealProgress, n - 1 - i, n)
+      slot.transformOrigin = root.vertical ? Item.Bottom : Item.Right
+      slot.opacity = f
+      slot.scale = 0.6 + 0.4 * f
+    }
+    // Faded out: hand the width back and drop the transform.
+    if (!root.expanded && root.revealProgress <= 0.001) {
+      for (var j = 0; j < n; j++) {
+        if (!list[j]) continue
+        resetTransform(list[j])
+        show(list[j], false)
+      }
+    }
+  }
+
+  // Never leave a host-owned slot carrying our cascade transform: a slot that
+  // left the hidden set, moved to the strip or outlived this widget is drawn
+  // by the bar, not by us.
+  function resetTransform(slot) {
+    slot.opacity = 1
+    slot.scale = 1
+    slot.transformOrigin = Item.Center
   }
 
   // A slot waiting for its repaint stays hidden until repaintTimer shows it,
@@ -442,11 +540,13 @@ BarWidget {
     // Never orphan a host-owned slot when the row is unavailable.
     var row = sectionRow || managedSectionRow
     if (!row) {
+      resetTransform(slot)
       show(slot, true)
       return false
     }
     var moved = slot.parent !== row
     if (moved) slot.parent = row
+    resetTransform(slot)
     show(slot, true)
     return moved
   }
@@ -495,6 +595,7 @@ BarWidget {
         slot.parent = row
         returned = true
       }
+      resetTransform(slot)
       slot.visible = true
     }
     if (returned) restoreOrder(row, managedLayoutOrder)
@@ -503,22 +604,39 @@ BarWidget {
     managedLayoutOrder = []
   }
 
-  // No registry is reachable on the facade, so the label is derived from the
-  // layout id. `placed` is where the layout has it; `hidden` is what the
+  // The host slot carries the registry's display name for a registered widget;
+  // a `type: command` or `qml` entry has no metadata, so the id-derived label
+  // is the fallback. `placed` is where the layout has it; `hidden` is what the
   // popup shows.
-  function widgetRow(id, placed) {
+  function widgetName(slot) {
+    var meta = slot.registryMetadata
+    var name = meta && meta.displayName ? String(meta.displayName).trim() : ""
+    return name || Model.displayLabel(slot.moduleName)
+  }
+
+  function widgetRow(slot, placed) {
+    var id = slot.moduleName
     return {
       id: id,
-      name: Model.displayLabel(id),
+      name: widgetName(slot),
       placed: placed,
       staged: stagedWidgets[id] !== undefined,
-      hidden: stagedHidden(id, placed)
+      hidden: stagedHidden(id, placed),
+      always: root.alwaysHiddenIds.indexOf(id) !== -1
     }
   }
 
   function stagedHidden(id, placed) {
     var staged = stagedWidgets[id]
     return staged === undefined ? placed : staged === true
+  }
+
+  // Settings-only write, like togglePin: the host patches the entry in place,
+  // so the popup survives the click and no slot is re-parented. Ids without a
+  // slot stay in the list, because a disabled plugin may come back.
+  function toggleAlwaysHidden(id) {
+    var present = root.alwaysHiddenIds.indexOf(id) === -1
+    persistSettings({ alwaysHidden: Model.setMembership(root.alwaysHiddenIds, id, present) })
   }
 
   // Staging a widget back to what the layout already says drops the override,
@@ -576,6 +694,9 @@ BarWidget {
   onExpandedChanged: applyHidden()
   onRowModeChanged: applyHidden()
   onStagedWidgetsChanged: applyHidden()
+  onAlwaysHiddenIdsChanged: applyHidden()
+  onRevealAllChanged: applyHidden()
+  onRevealProgressChanged: applyReveal()
   // A Flickable keeps its offset, so a menu reopened after scrolling the
   // widget list would start part-way down with the Behaviour toggles out of
   // sight. Same reset the tray menu does.
@@ -612,7 +733,8 @@ BarWidget {
         if (!slot || (slot.parent !== stripFlow && slot.parent !== root.sectionRow)) continue
         // Still in the hidden set: follow the section. Out of it: back in the
         // bar for good.
-        slot.visible = root.managedSlots.indexOf(slot) === -1 || revealed || root.expanded
+        slot.visible = root.managedSlots.indexOf(slot) === -1
+          || ((revealed || root.expanded) && !(root.isAlwaysHidden(slot) && !root.revealAll))
       }
     }
   }
@@ -689,6 +811,11 @@ BarWidget {
     // subcommand, so the method would be unreachable from the command line.
     function reveal(): void { root.expand() }
     function hide(): void { root.collapse() }
+    // The only way to peek at the always-hidden set; any collapse clears it.
+    function revealAll(): void {
+      root.revealAll = true
+      root.expand()
+    }
     function opened(): string { return root.expanded ? "true" : "false" }
   }
 
@@ -729,14 +856,19 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           x: Math.round(root.revealExtent)
-          // row: nf-fa-chevron_up / chevron_down; inline: chevron_right / chevron_left
-          text: root.rowMode
-            ? (root.expanded ? "\uf077" : "\uf078")
-            : (root.expanded ? "\uf054" : "\uf053")
-          tooltipText: root.expanded ? "Hide" : "Show hidden items"
+          text: root.iconGlyph
+          // One behaviour for every preset: a half turn on reveal. The dot and
+          // dots glyphs are symmetric, so for them it reads as a static mark.
+          textRotation: root.expanded ? 180 : 0
+          // No tooltip: it renders below the bar, on top of the row strip the
+          // click is about to open.
           onPressed: function(button) {
             if (button === Qt.LeftButton) root.toggle()
             else if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+          }
+
+          Behavior on textRotation {
+            NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
           }
         }
 
@@ -807,12 +939,19 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           y: Math.round(root.revealExtent)
-          text: root.expanded ? "\uf054" : "\uf053"  // nf-fa-chevron_right / nf-fa-chevron_left
-          textRotation: 90
-          tooltipText: root.expanded ? "Hide" : "Show hidden items"
+          text: root.iconGlyph
+          // Same half turn as the horizontal bar, on top of the 90° the
+          // vertical bar draws its glyphs at.
+          textRotation: 90 + (root.expanded ? 180 : 0)
+          // No tooltip: it renders below the bar, on top of the row strip the
+          // click is about to open.
           onPressed: function(button) {
             if (button === Qt.LeftButton) root.toggle()
             else if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+          }
+
+          Behavior on textRotation {
+            NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
           }
         }
 
@@ -1038,28 +1177,144 @@ BarWidget {
           font.bold: true
         }
 
-        // Toggle is stateless: bind checked, flip the setting in onClicked.
-        // No helper text: the labels say it, and the only thing worth warning
-        // about is a vertical bar, which has no row to open.
-        Toggle {
+        // The kit Toggle parks its switch in a 54px bordered box, which dwarfs
+        // the icon dropdown and the lists below it. These rows use the bare
+        // ToggleSwitch on a plain row, the same shape the tray and widget lists
+        // already have, and ask the switch for a smaller track instead of
+        // scaling a big one down.
+        Item {
+          id: rowModeRow
           width: manageColumn.width
-          label: "Show in a row below the bar"
-          description: root.vertical ? "Needs a horizontal bar" : ""
-          checked: root.revealMode === "row"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          titleSize: Style.font.bodySmall
-          onClicked: root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" })
+          implicitHeight: Style.spacing.controlHeight
+          activeFocusOnTab: true
+
+          function flip() { root.persistSettings({ revealMode: root.revealMode === "row" ? "inline" : "row" }) }
+
+          Keys.onReturnPressed: rowModeRow.flip()
+          Keys.onEnterPressed: rowModeRow.flip()
+          Keys.onSpacePressed: rowModeRow.flip()
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.right: rowModeSwitch.left
+            anchors.rightMargin: Style.space(8)
+            text: "Show in a row below the bar"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
+          }
+
+          // Deliberately smaller than the kit's 22px track: the row is the
+          // height of a control, not of a card. The row owns the click, so the
+          // switch is presentation only, but the ring is switched back on by
+          // hand: it follows `interactive` and is what shows hover and focus.
+          ToggleSwitch {
+            id: rowModeSwitch
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            trackHeight: Style.space(16)
+            interactive: false
+            cursorRing: true
+            cursorPad: Style.space(4)
+            hasCursor: rowModeRow.activeFocus || rowModeMouse.containsMouse
+            checked: root.revealMode === "row"
+            foreground: root.foreground
+          }
+
+          // The whole row is the click target, as the kit Toggle's is.
+          MouseArea {
+            id: rowModeMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: rowModeRow.flip()
+          }
         }
 
-        Toggle {
+        // The only warning worth the space: a vertical bar has no row to open.
+        Text {
+          textFormat: Text.PlainText
+          visible: root.vertical
           width: manageColumn.width
-          label: "Reveal on hover"
-          checked: root.revealOnHover
+          text: "Needs a horizontal bar"
+          color: Qt.darker(root.foreground, 1.5)
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+        }
+
+        Item {
+          id: hoverRow
+          width: manageColumn.width
+          implicitHeight: Style.spacing.controlHeight
+          activeFocusOnTab: true
+
+          function flip() { root.persistSettings({ revealOnHover: !root.revealOnHover }) }
+
+          Keys.onReturnPressed: hoverRow.flip()
+          Keys.onEnterPressed: hoverRow.flip()
+          Keys.onSpacePressed: hoverRow.flip()
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.right: hoverSwitch.left
+            anchors.rightMargin: Style.space(8)
+            text: "Reveal on hover"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
+          }
+
+          ToggleSwitch {
+            id: hoverSwitch
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            trackHeight: Style.space(16)
+            interactive: false
+            cursorRing: true
+            cursorPad: Style.space(4)
+            hasCursor: hoverRow.activeFocus || hoverMouse.containsMouse
+            checked: root.revealOnHover
+            foreground: root.foreground
+          }
+
+          MouseArea {
+            id: hoverMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: hoverRow.flip()
+          }
+        }
+
+        // The kit Dropdown assigns `value` itself on select, which overwrites
+        // the declarative binding, so the Binding below re-asserts the setting
+        // and keeps a CLI edit in sync while the popup is open.
+        Dropdown {
+          id: iconPicker
+          width: manageColumn.width
+          label: "Indicator icon"
           foreground: root.foreground
           fontFamily: root.fontFamily
-          titleSize: Style.font.bodySmall
-          onClicked: root.persistSettings({ revealOnHover: !root.revealOnHover })
+          value: root.icon
+          options: [
+            { value: "chevron", label: "Chevron" },
+            { value: "dot", label: "Dot" },
+            { value: "dots", label: "Three dots" }
+          ]
+          onChanged: function(value) { root.persistSettings({ icon: value }) }
+        }
+
+        Binding {
+          target: iconPicker
+          property: "value"
+          value: root.icon
         }
 
         PanelSeparator {
@@ -1193,10 +1448,12 @@ BarWidget {
               textFormat: Text.PlainText
               anchors.verticalCenter: parent.verticalCenter
               anchors.left: parent.left
-              anchors.right: widgetToggleBtn.left
+              anchors.right: widgetAlwaysBtn.left
               anchors.rightMargin: Style.space(8)
               text: widgetRow.modelData.name
-              color: widgetRow.modelData.hidden ? Qt.darker(root.foreground, 1.4) : root.foreground
+              color: (widgetRow.modelData.hidden || widgetRow.modelData.always)
+                ? Qt.darker(root.foreground, 1.4)
+                : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
@@ -1204,6 +1461,9 @@ BarWidget {
 
             Button {
               id: widgetToggleBtn
+              // An always-hidden widget ignores its side of the chevron, so
+              // the positional control would be a lie for that row.
+              visible: !widgetRow.modelData.always
               anchors.verticalCenter: parent.verticalCenter
               anchors.right: parent.right
               iconText: "\uf06e"  // nf-fa-eye
@@ -1214,6 +1474,21 @@ BarWidget {
               iconSize: Style.font.bodySmall
               fontSize: Style.font.bodySmall
               onClicked: root.stageWidget(widgetRow.modelData.id, !widgetRow.modelData.hidden, widgetRow.modelData.placed)
+            }
+
+            Button {
+              id: widgetAlwaysBtn
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: widgetToggleBtn.visible ? widgetToggleBtn.left : parent.right
+              anchors.rightMargin: widgetToggleBtn.visible ? Style.space(6) : 0
+              iconText: "\uf070"  // nf-fa-eye_slash
+              text: widgetRow.modelData.always ? "Stop hiding" : "Always hide"
+              foreground: root.foreground
+              horizontalPadding: 8
+              verticalPadding: 3
+              iconSize: Style.font.bodySmall
+              fontSize: Style.font.bodySmall
+              onClicked: root.toggleAlwaysHidden(widgetRow.modelData.id)
             }
           }
         }

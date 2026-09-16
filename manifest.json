@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.terrifiedbug.omaice",
   "name": "OmaIce",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": "TerrifiedBug",
   "license": "MIT",
   "description": "Ice-style hidden section for the bar: everything left of the chevron hides, plus the system tray.",
@@ -15,11 +15,12 @@
     "category": "Status",
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": { "rehideSeconds": 0, "revealOnHover": false, "revealMode": "inline" },
+    "defaults": { "rehideSeconds": 0, "revealOnHover": false, "revealMode": "inline", "icon": "chevron" },
     "schema": [
       { "key": "rehideSeconds", "type": "integer", "label": "Auto-hide after (seconds, 0 = never)", "defaultValue": 0, "min": 0, "max": 600, "step": 1, "description": "Extra timeout on top of click-to-dismiss; hover reveal closes on its own" },
       { "key": "revealOnHover", "type": "boolean", "label": "Reveal on hover", "defaultValue": false },
-      { "key": "revealMode", "type": "enum", "label": "Reveal hidden items", "options": ["inline", "row"], "defaultValue": "inline", "description": "inline slides them out beside the chevron; row shows them in a strip under the bar" }
+      { "key": "revealMode", "type": "enum", "label": "Reveal hidden items", "options": ["inline", "row"], "defaultValue": "inline", "description": "inline slides them out beside the chevron; row shows them in a strip under the bar" },
+      { "key": "icon", "type": "enum", "label": "Indicator icon", "options": ["chevron", "dot", "dots"], "defaultValue": "chevron", "description": "chevron flips when the section is open; dot and dots stay put" }
     ]
   }
 }
