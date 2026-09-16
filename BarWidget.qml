@@ -1093,11 +1093,24 @@ BarWidget {
 
             readonly property string itemId: String(modelData.id || "")
             readonly property string displayName: {
+              // Title first: the app's own label when it sets one. Some apps
+              // (Slack) leave Title empty and put transient state ("You have
+              // unread messages") in the tooltip, so try the desktop-entry
+              // name — resolved from the SNI id, Electron ids end
+              // "_status_icon_N" — BEFORE falling back to the tooltip.
               var t = String(modelData.title || "").trim()
               if (t) return t
+              var id = String(modelData.id || "")
+              var appKey = id.replace(/_status_icon_\d+$/, "")
+              if (appKey && typeof DesktopEntries.heuristicLookup === "function") {
+                var entry = DesktopEntries.heuristicLookup(appKey)
+                if (entry) {
+                  var entryName = String(entry.name || "").trim()
+                  if (entryName) return entryName
+                }
+              }
               var tt = String(modelData.tooltipTitle || "").trim()
               if (tt) return tt
-              var id = String(modelData.id || "")
               var slash = id.lastIndexOf("/")
               return slash !== -1 ? id.substring(slash + 1) : (id || "Unknown")
             }
