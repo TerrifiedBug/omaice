@@ -410,7 +410,10 @@ BarWidget {
 
   // Idempotent: releases slots that left the hidden set before applying the
   // current one, so a widget dragged past the chevron is never left invisible.
-  // In row mode a revealed slot lives in the strip instead of the section Row.
+  // In row mode a hidden slot lives in the strip whether the section is open
+  // or not: moving one between windows rebuilds its scene graph and re-parents
+  // the popups it owns, which costs tens of milliseconds per widget, so it
+  // stays parented there and only its visibility follows the reveal.
   function applyHidden() {
     if (!ownSlot) return
     // Snapshot the teardown destinations while the scene is still reachable.
@@ -426,7 +429,7 @@ BarWidget {
         returned = true
       }
     }
-    var inStrip = root.rowMode && root.expanded
+    var inStrip = root.rowMode
     for (var j = 0; j < next.length; j++) {
       // An always-hidden widget never enters the strip and never follows a
       // reveal; it comes back only while the revealAll peek is on.
@@ -446,7 +449,9 @@ BarWidget {
         // A slot switching to the strip mid-fade must not carry the cascade
         // transform into a card that does its own fade.
         resetTransform(next[j])
-        show(next[j], true)
+        // Parked in the strip either way, so this flag is the whole reveal: a
+        // collapsed strip has no visible child and the Flow closes over it.
+        show(next[j], root.expanded)
       } else {
         if (returnSlot(next[j])) {
           moved.push(next[j])
@@ -477,8 +482,8 @@ BarWidget {
   }
 
   // Pocket-style cascade, inline mode only: each revealable slot fades and
-  // grows out of the indicator, the one nearest it leading. Row mode keeps its
-  // instant re-parent and the card's own fade.
+  // grows out of the indicator, the one nearest it leading. Row mode keeps the
+  // card's own fade.
   function applyReveal() {
     if (root.rowMode) return
     var list = root.revealableSlots
@@ -1007,9 +1012,13 @@ BarWidget {
     // The card is the content plus its border on each side.
     readonly property int borderWidth: 1
     readonly property int rowsHeight: Math.round(stripFlow.childrenRect.height)
-    readonly property int cardHeight: rowsHeight > 0 ? rowsHeight + borderWidth * 2 : 0
+    // Collapsed, the card measures nothing whatever the Flow still reports:
+    // the slots stay parented in here, so the geometry has to follow the
+    // reveal rather than the content. A zero card leaves a bar-height surface
+    // with an empty input mask, which is the same nothing an unmapped one was.
+    readonly property int cardHeight: root.expanded && rowsHeight > 0 ? rowsHeight + borderWidth * 2 : 0
     readonly property int contentWidth: Math.round(stripFlow.childrenRect.width)
-    readonly property int cardWidth: contentWidth > 0 ? contentWidth + borderWidth * 2 : 0
+    readonly property int cardWidth: root.expanded && contentWidth > 0 ? contentWidth + borderWidth * 2 : 0
     // An anchored layer surface spans the screen, but the window's own `width`
     // still reports its implicit size (500), so geometry inside is measured
     // off the screen instead.
@@ -1041,11 +1050,12 @@ BarWidget {
     }
 
     screen: root.QsWindow.window ? root.QsWindow.window.screen : null
-    // No fade-out: the hidden widgets are re-parented back into the bar the
-    // instant the section collapses, so anything still fading here is just the
-    // tray block hanging on alone for a frame. Unmap at once; the card still
-    // fades in on open.
-    visible: root.rowMode && root.expanded
+    // Mapped for as long as row mode is on, not only while the section is
+    // open: the hidden widgets live in here, and unmapping would mean handing
+    // every one of them back to the bar on each collapse and taking them again
+    // on each reveal. Collapsed, this is a transparent, bar-height,
+    // click-through surface that draws nothing.
+    visible: root.rowMode
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     anchors { top: !atBottom; bottom: atBottom; left: true; right: true }
@@ -1091,9 +1101,13 @@ BarWidget {
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
       color: Color.popups.background
       opacity: root.expanded ? 1 : 0
+      // Nothing under here is drawn while collapsed, the parked slots least of
+      // all: a zero-size card does not clip, so without this they would paint
+      // outside it.
+      visible: root.expanded
 
-      // Fade in on open. The surface unmaps on collapse, so the way out is
-      // instant whatever this says.
+      // Fade in on open. The card goes the instant the section collapses, so
+      // the way out is instant whatever this says.
       Behavior on opacity {
         NumberAnimation { duration: 140 }
       }
