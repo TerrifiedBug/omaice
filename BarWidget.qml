@@ -515,6 +515,14 @@ BarWidget {
     slot.opacity = 1
     slot.scale = 1
     slot.transformOrigin = Item.Center
+    // A positioner only drives one axis: the section Row sets x and never
+    // touches y. The strip is a Flow and it wraps, so a slot that came back
+    // from the second or third wrapped line keeps that line's y and draws
+    // below the bar -- invisible, unclickable, and with x, width, visible and
+    // itemVisible all still reading correct, which is why the geometry looks
+    // healthy. Clear the axis the section will not.
+    if (root.vertical) slot.x = 0
+    else slot.y = 0
   }
 
   // A slot waiting for its repaint stays hidden until repaintTimer shows it,
