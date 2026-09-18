@@ -344,9 +344,9 @@ BarWidget {
   }
 
   // Sibling ModuleSlots of this section on this monitor, in layout order. A
-  // slot is found under the section Row or, while revealed in a row, under the
-  // strip; the layout config is the order, since re-parenting appends. The
-  // Repeater is also a child of the Row; the duck-typed test skips it.
+  // slot is found under the section Row or, in row mode, under the strip; the
+  // layout config is the order, since re-parenting appends. The Repeater is
+  // also a child of the Row; the duck-typed test skips it.
   function sectionSlots() {
     if (!sectionRow) return []
     var found = []
@@ -730,7 +730,6 @@ BarWidget {
     onTriggered: {
       var queue = root.repaintQueue
       root.repaintQueue = []
-      var revealed = root.rowMode && root.expanded
       for (var i = 0; i < queue.length; i++) {
         var slot = queue[i]
         // A slot the host has since rebuilt or moved elsewhere is not ours to
@@ -739,7 +738,7 @@ BarWidget {
         // Still in the hidden set: follow the section. Out of it: back in the
         // bar for good.
         slot.visible = root.managedSlots.indexOf(slot) === -1
-          || ((revealed || root.expanded) && !(root.isAlwaysHidden(slot) && !root.revealAll))
+          || (root.expanded && !(root.isAlwaysHidden(slot) && !root.revealAll))
       }
     }
   }
@@ -1059,16 +1058,15 @@ BarWidget {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     anchors { top: !atBottom; bottom: atBottom; left: true; right: true }
-    // Both declared, not just height: a widget revealed in the strip anchors
+    // Both declared, not just height: a widget parked in the strip anchors
     // its own popup to this window, and PopupCard clamps the popup's x against
     // anchorWindow.width. Left at its implicit default the window reports
     // 500px and every popup opened from the strip gets shoved to the left.
     implicitWidth: surfaceWidth
     implicitHeight: root.barSize + cardHeight
-    // Declared as well as implicit: the strip maps while the repaint nudge
-    // still holds its content invisible, and a surface committed at bar
-    // height keeps that height, leaving the card outside it. The window's
-    // own `height` follows the content as the re-parented slots settle.
+    // Declared as well as implicit: the strip maps collapsed, and a surface
+    // committed at bar height keeps that height, leaving the card outside it
+    // on reveal. The window's own `height` follows the card as it opens.
     height: root.barSize + cardHeight
     WlrLayershell.namespace: "omaice-strip"
     WlrLayershell.layer: WlrLayer.Top
@@ -1101,9 +1099,9 @@ BarWidget {
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
       color: Color.popups.background
       opacity: root.expanded ? 1 : 0
-      // Nothing under here is drawn while collapsed, the parked slots least of
-      // all: a zero-size card does not clip, so without this they would paint
-      // outside it.
+      // The parked slots are already hidden, but the tray block is not: its
+      // Repeater is keyed on row mode, not the reveal, and a zero-size card
+      // does not clip, so without this it would paint outside the card.
       visible: root.expanded
 
       // Fade in on open. The card goes the instant the section collapses, so
