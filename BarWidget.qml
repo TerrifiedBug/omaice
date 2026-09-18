@@ -518,13 +518,17 @@ BarWidget {
   }
 
   // A positioner only drives one axis: the section Row sets x and never
-  // touches y. The strip is a Flow and it wraps, so a slot handed back from
-  // its second or third line keeps that line's y and draws below the bar:
-  // invisible, unclickable, and with x, width and visible all still reading
-  // correct. Only on the way back, never while parked: a Flow does not
-  // relayout on a position-only change, so zeroing y under a slot it has
-  // already wrapped would collapse the strip's rows onto the first line.
+  // touches y (a vertical Column, the reverse). The strip is a Flow and it
+  // wraps, so a slot handed back from its second or third line keeps that
+  // line's y and draws below the bar: invisible, unclickable, and with x,
+  // width and visible all still reading correct. Both axes go to zero: the
+  // destination re-drives its own on the relayout the re-parent triggers,
+  // and the other one nobody else will touch. Only on the way back, never
+  // while parked: a Flow does not relayout on a position-only change, so
+  // zeroing y under a slot it has already wrapped would collapse the strip's
+  // rows onto the first line.
   function clearCrossAxis(slot) {
+    slot.x = 0
     slot.y = 0
   }
 
