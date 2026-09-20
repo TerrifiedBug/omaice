@@ -1056,8 +1056,15 @@ BarWidget {
       var x = Math.round(root.ownSlot.mapToItem(host, 0, 0).x)
       return x > 0 ? x : -1
     }
-    readonly property int leftEdge: chevronX < 0 ? Style.space(8) : chevronX
-    readonly property int maxWidth: Math.max(0, surfaceWidth - leftEdge - Style.space(8))
+    // One line for as long as the screen can hold one: the Flow gets the full
+    // usable width rather than the gap to the right of the chevron, and the
+    // card slides left when the content needs more room than that gap. Every
+    // entry left of the chevron is ours, so the space under them is the
+    // natural place to grow into. Wrapping is what is left when the hidden
+    // set is wider than the screen.
+    readonly property int margin: Style.space(8)
+    // Leave room for the card border inside both screen margins.
+    readonly property int maxWidth: Math.max(0, surfaceWidth - margin * 2 - borderWidth * 2)
 
     // Tracks every layout change between the bar's content surface and the
     // chevron's slot, which is what keeps chevronX live as widgets come and go.
@@ -1104,11 +1111,13 @@ BarWidget {
     Rectangle {
       id: stripCard
       // Starts under the chevron (or at the right margin when the chevron is
-      // not placeable) and grows right; the clamp only matters if a single
-      // unwrappable widget is wider than the space beside it.
+      // not placeable) and grows right. Out of room on the right, it slides
+      // left under the widgets it is hiding and keeps its right edge at the
+      // screen margin; the floor only bites when the content is wider than
+      // the screen, and then the Flow wraps.
       x: stripWindow.chevronX < 0
-        ? Math.max(0, stripWindow.surfaceWidth - Style.space(8) - width)
-        : Math.max(0, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - Style.space(8) - width))
+        ? Math.max(stripWindow.margin, stripWindow.surfaceWidth - stripWindow.margin - width)
+        : Math.max(stripWindow.margin, Math.min(stripWindow.chevronX, stripWindow.surfaceWidth - stripWindow.margin - width))
       y: stripWindow.atBottom ? 0 : root.barSize
       width: stripWindow.cardWidth
       height: stripWindow.cardHeight
@@ -1132,7 +1141,7 @@ BarWidget {
 
       HoverHandler { id: stripHover }
 
-      // Left to right, wrapping at the screen width; the hidden slots are
+      // Left to right, wrapping only past the full screen width; the slots are
       // re-parented in here by applyHidden(), the tray block re-appended last.
       Flow {
         id: stripFlow

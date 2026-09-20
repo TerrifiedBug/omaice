@@ -71,6 +71,10 @@ first, and collapsing runs it backwards. The strip opens in one go instead. Two
 things are worse in the strip: no bar tooltips, and you cannot drag-reorder from
 it. The "Bar widgets" list still moves them.
 
+The strip starts under the indicator and grows right. If the icons need more
+room, it slides left under the widgets it is hiding. It wraps onto a second
+line only when the whole set is wider than your screen.
+
 Handy on a keybind:
 
 ```bash
