@@ -206,10 +206,8 @@ BarWidget {
     return "drawer"
   }
 
-  function ownedByOmarchy(item) {
-    var layout = root.bar && root.bar.layoutConfig ? root.bar.layoutConfig : null
-    return TrayModel.ownedByOmarchy(item, layout)
-  }
+  readonly property bool dropboxWidgetPresent: TrayModel.layoutHasWidget(root.bar && root.bar.layoutConfig ? root.bar.layoutConfig : null, "omarchy.dropbox")
+  function ownedByOmarchy(item) { return TrayModel.ownedByOmarchy(item, root.dropboxWidgetPresent) }
 
   function bucket(category) {
     var values = SystemTray.items.values
@@ -399,9 +397,12 @@ BarWidget {
   }
 
   // Re-apply after the current pass of bindings and slot registrations, so a
-  // burst of slot registrations costs one pass. An owned one-shot Timer, not
-  // Qt.callLater: destroying this widget cancels the timer, while a queued
-  // closure outlives the object and runs against its corpse.
+  // burst of slot registrations costs one pass. The settings-driven handlers
+  // (row mode, staged rows, always-hidden, revealAll) coalesce here too, so a
+  // settings write re-parents nothing inside the call that made it. An owned
+  // one-shot Timer, not Qt.callLater: destroying this widget cancels the
+  // timer, while a queued closure outlives the object and runs against its
+  // corpse.
   function reapplySoon() { reapplyTimer.restart() }
 
   // Slots that changed window in the last pass and are waiting to be shown
@@ -716,17 +717,36 @@ BarWidget {
 
   onOwnSlotChanged: reapplySoon()
   onExpandedChanged: applyHidden()
-  onRowModeChanged: applyHidden()
-  onStagedWidgetsChanged: applyHidden()
-  onAlwaysHiddenIdsChanged: applyHidden()
-  onRevealAllChanged: applyHidden()
+  onRowModeChanged: reapplySoon()
+  onStagedWidgetsChanged: reapplySoon()
+  onAlwaysHiddenIdsChanged: reapplySoon()
+  onRevealAllChanged: reapplySoon()
   onRevealProgressChanged: applyReveal()
   // A Flickable keeps its offset, so a menu reopened after scrolling the
   // widget list would start part-way down with the Behaviour toggles out of
   // sight. Same reset the tray menu does.
   onManagePopupOpenChanged: {
     if (managePopupOpen) manageFlick.contentY = 0
-    else commitStagedWidgets()
+    else {
+      commitStagedWidgets()
+      manageListsLive = false
+    }
+  }
+
+  // The manage lists exist only while the popup is up: closed, their rows are
+  // invisible, and the host replaces the facade's layoutConfig on every
+  // click-target or popout change anywhere in the bar, which would rebuild
+  // every row each time. Flipped on before managePopupOpen so the rows exist
+  // when the card measures itself, and off after the close commit.
+  property bool manageListsLive: false
+
+  function toggleManagePopup() {
+    if (managePopupOpen) {
+      managePopupOpen = false
+      return
+    }
+    manageListsLive = true
+    managePopupOpen = true
   }
   Component.onCompleted: reapplySoon()
   Component.onDestruction: releaseHidden()
@@ -887,7 +907,7 @@ BarWidget {
           // click is about to open.
           onPressed: function(button) {
             if (button === Qt.LeftButton) root.toggle()
-            else if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.RightButton) root.toggleManagePopup()
           }
 
           Behavior on textRotation {
@@ -970,7 +990,7 @@ BarWidget {
           // click is about to open.
           onPressed: function(button) {
             if (button === Qt.LeftButton) root.toggle()
-            else if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.RightButton) root.toggleManagePopup()
           }
 
           Behavior on textRotation {
@@ -1089,12 +1109,8 @@ BarWidget {
     // anchorWindow.width. Left at its implicit default the window reports
     // 500px and every popup opened from the strip gets shoved to the left.
     implicitWidth: surfaceWidth
+    // implicitHeight is the window height on quickshell 0.3; setting height is the same call plus a deprecation warning.
     implicitHeight: root.barSize + cardHeight
-    // Declared as well as implicit: the strip maps while the repaint nudge
-    // still holds its content invisible, and a surface committed at bar
-    // height keeps that height, leaving the card outside it on reveal. The
-    // window's own `height` follows the card as it opens.
-    height: root.barSize + cardHeight
     WlrLayershell.namespace: "omaice-strip"
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -1381,7 +1397,7 @@ BarWidget {
         }
 
         Repeater {
-          model: root.allItems
+          model: root.manageListsLive ? root.allItems : []
           delegate: Item {
             id: rowRoot
             required property var modelData
@@ -1478,7 +1494,7 @@ BarWidget {
         // Hiding a widget is a move relative to the chevron, not a flag: the
         // divider's meaning is positional, so the layout has to say it too.
         Repeater {
-          model: root.sectionWidgets
+          model: root.manageListsLive ? root.sectionWidgets : []
           delegate: Item {
             id: widgetRow
             required property var modelData
