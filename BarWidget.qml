@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "TrayModel.js" as TrayModel
 import "Model.js" as Model
@@ -34,7 +35,7 @@ BarWidget {
   property bool trayMenuOpen: false
   property var activeTrayItem: null
   property var activeTrayAnchor: null
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -1142,7 +1143,7 @@ BarWidget {
       // follows the popup theme and ignores bar transparency.
       border.width: stripWindow.borderWidth
       border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
-      color: Color.popups.background
+      color: Commons.Color.popups.background
       opacity: root.expanded ? 1 : 0
       // The parked slots are already hidden, but the tray block is not: its
       // Repeater is keyed on row mode, not the reveal, and a zero-size card
@@ -1658,7 +1659,7 @@ BarWidget {
             anchors.rightMargin: Style.space(10)
             anchors.verticalCenter: parent.verticalCenter
             height: 1
-            color: Color.popups.border
+            color: Commons.Color.popups.border
             opacity: 0.45
           }
         }
@@ -1712,7 +1713,7 @@ BarWidget {
                 anchors.rightMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
                 height: 1
-                color: Color.popups.border
+                color: Commons.Color.popups.border
                 opacity: 0.45
               }
 

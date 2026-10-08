@@ -138,6 +138,12 @@ stock tray starts from its own.
 `omarchy plugin disable io.github.terrifiedbug.omaice` does the same thing
 temporarily, without deleting anything.
 
+## Theme compatibility
+
+Theme colors use a namespaced `qs.Commons.Color` import to avoid Qt 6.12's
+`Color` name collision. This keeps the existing palette roles and fallbacks
+without changing the plugin's Omarchy requirements.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). The tray rendering, meaning icons, menus and
