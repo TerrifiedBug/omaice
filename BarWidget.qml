@@ -261,6 +261,10 @@ BarWidget {
   // releaseHidden runs.
   property var managedSectionRow: null
   property var managedLayoutOrder: []
+  // Every section slot the last pass saw, hidden or not. A Row child outside
+  // this set at teardown is the host's next generation, already laid out by
+  // its Repeater in the new order.
+  property var managedGeneration: []
   // Bumped whenever the section's slots may have been rebuilt, so the
   // sectionWidgets binding has something to depend on: the slot list comes
   // from a function call, which QML cannot track.
@@ -421,6 +425,7 @@ BarWidget {
     // Snapshot the teardown destinations while the scene is still reachable.
     managedSectionRow = sectionRow
     managedLayoutOrder = layoutOrder()
+    managedGeneration = sectionSlots()
     var next = hiddenSlots()
     var moved = []
     var returned = false
@@ -606,6 +611,13 @@ BarWidget {
   // reload landing inside repaintTimer's frame would otherwise strand slots
   // hidden, with no timer left alive to show them again. They may draw stale
   // for a frame; the layout write that removes this widget rebuilds them.
+  //
+  // A layout write rebuilds every slot, and the Repeater builds the new
+  // generation into the same Row before the old one is destroyed. Reordering
+  // then would sort the new slots by the old snapshot and undo the move that
+  // caused the rebuild, so the Row is left alone; the returned slots are
+  // dying with this widget anyway. A reload of this widget alone keeps the
+  // sibling slots, and that is the case the reorder is for.
   function releaseHidden() {
     repaintQueue = []
     // Snapshot wins: the sectionRow binding reads through the dead ownSlot.
@@ -624,10 +636,20 @@ BarWidget {
       resetTransform(slot)
       slot.visible = true
     }
-    if (returned) restoreOrder(row, managedLayoutOrder)
+    if (returned && row && !rebuildInFlight(row)) restoreOrder(row, managedLayoutOrder)
     managedSlots = []
     managedSectionRow = null
     managedLayoutOrder = []
+    managedGeneration = []
+  }
+
+  function rebuildInFlight(row) {
+    var present = []
+    collectSlots(row.children, present)
+    for (var i = 0; i < present.length; i++) {
+      if (managedGeneration.indexOf(present[i]) === -1) return true
+    }
+    return false
   }
 
   // The host slot carries the registry's display name for a registered widget;
