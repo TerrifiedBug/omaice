@@ -270,19 +270,22 @@ BarWidget {
   // from a function call, which QML cannot track.
   property int slotRevision: 0
 
-  // The host mounts a registered widget as registryLoader.item inside its
-  // ModuleSlot, so the slot is a couple of parents up. Matched by identity,
-  // not by moduleName: the same widget id is mounted once per monitor.
+  // The host loads a registered widget into a WidgetHost, which it parents
+  // into the holder of whichever ModuleSlot shows it, so the slot is a few
+  // parents up. Both carry activeItem; only the slot has a region, so the
+  // walk skips the host. Matched by identity, not by moduleName: the same
+  // widget id is mounted once per monitor.
   readonly property var ownSlot: {
     var item = root.parent
     for (var depth = 0; item && depth < 8; depth++) {
-      if ("activeItem" in item && item.activeItem === root) return item
+      if ("activeItem" in item && "region" in item && item.activeItem === root) return item
       item = item.parent
     }
     return null
   }
 
-  // The Row (or Column on a vertical bar) that lays out this section's slots.
+  // The layout that holds this section's slots: a Row or Column on older
+  // hosts, a GridLayout since the 4.x edge bar rework.
   readonly property var sectionRow: ownSlot ? ownSlot.parent : null
 
   // Pointer over the ice section: the chevron's own slot, any revealed
